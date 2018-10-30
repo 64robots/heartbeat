@@ -1557,4 +1557,4 @@ return;
     typeString = protectedScope.typeString
     copyName = protectedScope.copyName
   })
-})()
+})();

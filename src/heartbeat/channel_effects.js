@@ -201,7 +201,7 @@
       this.node.delayTime.value = value
     }
   })
-})()
+})();
 
 /*
 

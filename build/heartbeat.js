@@ -801,8 +801,8 @@ if (typeof module !== "undefined" && module !== null) {
     return saveAs;
   });
 }
-;(function() {
-  'use strict'
+(function() {
+  'use strict';
 
   var // satisfy jslint
     alert = window.alert,
@@ -825,28 +825,28 @@ if (typeof module !== "undefined" && module !== null) {
     ua = navigator.userAgent,
     os,
     browser,
-    legacy = false
+    legacy = false;
 
   if (ua.match(/(iPad|iPhone|iPod)/g)) {
-    os = 'ios'
+    os = 'ios';
   } else if (ua.indexOf('Android') !== -1) {
-    os = 'android'
+    os = 'android';
   } else if (ua.indexOf('Linux') !== -1) {
-    os = 'linux'
+    os = 'linux';
   } else if (ua.indexOf('Macintosh') !== -1) {
-    os = 'osx'
+    os = 'osx';
   } else if (ua.indexOf('Windows') !== -1) {
-    os = 'windows'
+    os = 'windows';
   }
 
   if (ua.indexOf('Chrome') !== -1) {
     // chrome, chromium and canary
-    browser = 'chrome'
+    browser = 'chrome';
 
     if (ua.indexOf('OPR') !== -1) {
-      browser = 'opera'
+      browser = 'opera';
     } else if (ua.indexOf('Chromium') !== -1) {
-      browser = 'chromium'
+      browser = 'chromium';
     }
 
     /*
@@ -857,53 +857,53 @@ if (typeof module !== "undefined" && module !== null) {
         }
         */
   } else if (ua.indexOf('Safari') !== -1) {
-    browser = 'safari'
+    browser = 'safari';
   } else if (ua.indexOf('Firefox') !== -1) {
-    browser = 'firefox'
+    browser = 'firefox';
   } else if (ua.indexOf('Trident') !== -1) {
-    browser = 'Internet Explorer'
+    browser = 'Internet Explorer';
   }
 
   if (os === 'ios') {
     if (ua.indexOf('CriOS') !== -1) {
-      browser = 'chrome'
+      browser = 'chrome';
     }
   }
 
   //console.log(os, browser, '---', ua);
 
   if (window.AudioContext) {
-    context = new window.AudioContext()
-    if(context.createGainNode === undefined){
-        context.createGainNode = context.createGain;
+    context = new window.AudioContext();
+    if (context.createGainNode === undefined) {
+      context.createGainNode = context.createGain;
     }
   } else if (window.webkitAudioContext) {
-    context = new window.webkitAudioContext()
+    context = new window.webkitAudioContext();
   } else if (window.oAudioContext) {
-    context = new window.oAudioContext()
+    context = new window.oAudioContext();
   } else if (window.msAudioContext) {
-    context = new window.msAudioContext()
+    context = new window.msAudioContext();
   } else {
     //alert('Your browser does not support AudioContext!\n\nPlease use one of these browsers:\n\n- Chromium (Linux | Windows)\n- Firefox (OSX | Windows)\n- Chrome (Linux | Android | OSX | Windows)\n- Canary (OSX | Windows)\n- Safari (iOS 6.0+ | OSX)\n\nIf you use Chrome or Chromium, heartbeat uses the WebMIDI api');
     window.sequencer = {
       browser: browser,
       os: os
-    }
+    };
     alert(
       "The WebAudio API hasn't been implemented in " +
         browser +
         ', please use any other browser'
-    )
+    );
     window.sequencer.ready = function(cb) {
-      cb()
-    }
-    return
+      cb();
+    };
+    return;
   }
 
   // check for older implementations of WebAudio
-  src = context.createBufferSource()
+  src = context.createBufferSource();
   if (src.start === undefined) {
-    legacy = true
+    legacy = true;
   }
 
   /*
@@ -919,21 +919,21 @@ if (typeof module !== "undefined" && module !== null) {
     navigator.getUserMedia ||
     navigator.webkitGetUserMedia ||
     navigator.mozGetUserMedia ||
-    navigator.msGetUserMedia
+    navigator.msGetUserMedia;
 
   window.requestAnimationFrame =
-    window.requestAnimationFrame || window.webkitRequestAnimationFrame
-  window.Blob = window.Blob || window.webkitBlob || window.mozBlob
+    window.requestAnimationFrame || window.webkitRequestAnimationFrame;
+  window.Blob = window.Blob || window.webkitBlob || window.mozBlob;
 
   //console.log('iOS', os, context, window.Blob, window.requestAnimationFrame);
 
-  compressor = context.createDynamicsCompressor()
-  compressor.connect(context.destination)
+  compressor = context.createDynamicsCompressor();
+  compressor.connect(context.destination);
   //console.log(compressor);
-  gainNode = context.createGainNode()
+  gainNode = context.createGainNode();
   //gainNode.connect(compressor);
-  gainNode.connect(context.destination)
-  gainNode.gain.value = 1
+  gainNode.connect(context.destination);
+  gainNode.gain.value = 1;
 
   protectedScope = {
     context: context,
@@ -948,18 +948,18 @@ if (typeof module !== "undefined" && module !== null) {
     repetitiveTasks: {},
 
     getSampleId: function() {
-      return 'S' + sampleIndex++ + new Date().getTime()
+      return 'S' + sampleIndex++ + new Date().getTime();
     },
 
     addInitMethod: function(method) {
-      initMethods.push(method)
+      initMethods.push(method);
     },
 
     callInitMethods: function() {
       var i,
-        maxi = initMethods.length
+        maxi = initMethods.length;
       for (i = 0; i < maxi; i++) {
-        initMethods[i]()
+        initMethods[i]();
       }
     }
     /*
@@ -987,7 +987,7 @@ if (typeof module !== "undefined" && module !== null) {
             });
         };
 */
-  }
+  };
 
   /**
         @namespace sequencer
@@ -1093,33 +1093,33 @@ if (typeof module !== "undefined" && module !== null) {
         },
 */
     getTime: function() {
-      return context.currentTime
+      return context.currentTime;
     },
 
     setMasterVolume: function(value) {
-      value = value < 0 ? 0 : value > 1 ? 1 : value
-      gainNode.gain.value = value
+      value = value < 0 ? 0 : value > 1 ? 1 : value;
+      gainNode.gain.value = value;
     },
 
     getMasterVolume: function() {
-      return gainNode.gain.value
+      return gainNode.gain.value;
     },
 
     getCompressionReduction: function() {
       //console.log(compressor);
-      return compressor.reduction.value
+      return compressor.reduction.value;
     },
 
     enableMasterCompressor: function(flag) {
       if (flag) {
-        gainNode.disconnect(0)
-        gainNode.connect(compressor)
-        compressor.disconnect(0)
-        compressor.connect(context.destination)
+        gainNode.disconnect(0);
+        gainNode.connect(compressor);
+        compressor.disconnect(0);
+        compressor.connect(context.destination);
       } else {
-        compressor.disconnect(0)
-        gainNode.disconnect(0)
-        gainNode.connect(context.destination)
+        compressor.disconnect(0);
+        gainNode.disconnect(0);
+        gainNode.connect(context.destination);
       }
     },
 
@@ -1132,21 +1132,21 @@ if (typeof module !== "undefined" && module !== null) {
                 readonly attribute AudioParam attack; // in Seconds
                 readonly attribute AudioParam release; // in Seconds
             */
-      var i, param
+      var i, param;
       for (i = compressorParams.length; i >= 0; i--) {
-        param = compressorParams[i]
+        param = compressorParams[i];
         if (cfg[param] !== undefined) {
-          compressor[param].value = cfg[param]
+          compressor[param].value = cfg[param];
         }
       }
     }
-  }
+  };
 
   // debug levels
-  Object.defineProperty(sequencer, 'ERROR', { value: 1 })
-  Object.defineProperty(sequencer, 'WARN', { value: 2 })
-  Object.defineProperty(sequencer, 'INFO', { value: 3 })
-  Object.defineProperty(sequencer, 'LOG', { value: 4 })
+  Object.defineProperty(sequencer, 'ERROR', { value: 1 });
+  Object.defineProperty(sequencer, 'WARN', { value: 2 });
+  Object.defineProperty(sequencer, 'INFO', { value: 3 });
+  Object.defineProperty(sequencer, 'LOG', { value: 4 });
 
   //Object.defineProperty(window.sequencer, 'timedTasks', {value: {}});
   //Object.defineProperty(window.sequencer, 'scheduledTasks', {value: {}});
@@ -1154,7 +1154,7 @@ if (typeof module !== "undefined" && module !== null) {
 
   //Object.defineProperty(window.sequencer, 'midiInputs', {value: []});
   //Object.defineProperty(window.sequencer, 'midiOutputs', {value: []});
-})()
+})();
 (function(){
 
     'use strict';
@@ -2989,7 +2989,7 @@ if (typeof module !== "undefined" && module !== null) {
       this.node.delayTime.value = value
     }
   })
-})()
+})();
 
 /*
 
@@ -13191,7 +13191,7 @@ if (typeof module !== "undefined" && module !== null) {
         };
 */
   })
-})()
+})();
 (function(){
 
     'use strict';
@@ -20387,7 +20387,7 @@ return;
     typeString = protectedScope.typeString
     copyName = protectedScope.copyName
   })
-})()
+})();
 (function(){
 
     'use strict';
