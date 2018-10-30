@@ -1155,7 +1155,7 @@ if (typeof module !== "undefined" && module !== null) {
   //Object.defineProperty(window.sequencer, 'midiInputs', {value: []});
   //Object.defineProperty(window.sequencer, 'midiOutputs', {value: []});
 })()
-(function(){
+;(function(){
 
     'use strict';
 
