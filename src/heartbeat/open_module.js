@@ -72,7 +72,7 @@
   if (window.AudioContext) {
     context = new window.AudioContext();
     if (context.createGainNode === undefined) {
-      context.createGainNode = context.createGainNode;
+      context.createGainNode = context.createGain;
     }
   } else if (window.webkitAudioContext) {
     context = new window.webkitAudioContext();
