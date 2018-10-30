@@ -1,185 +1,172 @@
-    (function(){
+;(function() {
+  'use strict'
 
-    'use strict';
+  var // satisfy jslint
+    sequencer = window.sequencer,
+    console = window.console,
+    round = Math.round,
+    precision = Math.pow(10, sequencer.precision),
+    //local
+    factor,
+    nominator,
+    denominator,
+    bar,
+    beat,
+    sixteenth,
+    tick,
+    ticksPerBar,
+    ticksPerBeat,
+    ticksPerSixteenth,
+    numSixteenth,
+    millisPerTick,
+    secondsPerTick,
+    millis,
+    bpm
 
-    var
-        // satisfy jslint
-        sequencer = window.sequencer,
-        console = window.console,
+  // public
+  function parse(song, events) {
+    var event,
+      numEvents,
+      startEvent = 0,
+      lastEventTick = 0,
+      diffTicks,
+      i
 
-        round = Math.round,
+    numEvents = events.length
+    //console.log('parseEvents', numEvents);
+    events.sort(function(a, b) {
+      return a.sortIndex - b.sortIndex
+    })
 
-        precision = Math.pow(10, sequencer.precision),
+    getDataFromEvent(song.timeEvents[0])
 
-        //local
-        factor,
-        nominator,
-        denominator,
+    for (i = startEvent; i < numEvents; i++) {
+      event = events[i]
+      //console.log(i, event);
+      diffTicks = event.ticks - lastEventTick
+      tick += diffTicks
 
-        bar,
-        beat,
-        sixteenth,
-        tick,
-
-        ticksPerBar,
-        ticksPerBeat,
-        ticksPerSixteenth,
-        numSixteenth,
-        millisPerTick,
-        secondsPerTick,
-
-        millis,
-
-        bpm;
-
-    // public
-    function parse(song, events){
-
-        var event,
-            numEvents,
-            startEvent = 0,
-            lastEventTick = 0,
-            diffTicks,
-            i;
-
-        numEvents = events.length;
-        //console.log('parseEvents', numEvents);
-        events.sort(function(a, b){
-            return a.sortIndex - b.sortIndex;
-        });
-
-        getDataFromEvent(song.timeEvents[0]);
-
-        for(i = startEvent; i < numEvents; i++){
-
-            event = events[i];
-            //console.log(i, event);
-            diffTicks = event.ticks - lastEventTick;
-            tick += diffTicks;
-
-            while(tick >= ticksPerSixteenth){
-                sixteenth++;
-                tick -= ticksPerSixteenth;
-                while(sixteenth > numSixteenth){
-                    sixteenth -= numSixteenth;
-                    beat++;
-                    while(beat > nominator){
-                        beat -= nominator;
-                        bar++;
-                    }
-                }
-            }
-
-
-            switch(event.type){
-
-                case 0x51:
-                    bpm = event.bpm;
-                    millis = event.millis;
-                    millisPerTick = event.millisPerTick;
-                    secondsPerTick = event.secondsPerTick;
-                    //console.log(millisPerTick,event.millisPerTick);
-                    //console.log(event);
-                    break;
-
-                case 0x58:
-                    factor = event.factor;
-                    nominator = event.nominator;
-                    denominator = event.denominator;
-                    numSixteenth = event.numSixteenth;
-                    ticksPerBar = event.ticksPerBar;
-                    ticksPerBeat = event.ticksPerBeat;
-                    ticksPerSixteenth = event.ticksPerSixteenth;
-                    millis = event.millis;
-                    //console.log(nominator,numSixteenth,ticksPerSixteenth);
-                    //console.log(event);
-                    break;
-
-                default:
-                    millis = millis + (diffTicks * millisPerTick);
-                    updateEvent(event);
-            }
-
-            lastEventTick = event.ticks;
+      while (tick >= ticksPerSixteenth) {
+        sixteenth++
+        tick -= ticksPerSixteenth
+        while (sixteenth > numSixteenth) {
+          sixteenth -= numSixteenth
+          beat++
+          while (beat > nominator) {
+            beat -= nominator
+            bar++
+          }
         }
-        song.lastEventTmp = event;
+      }
+
+      switch (event.type) {
+        case 0x51:
+          bpm = event.bpm
+          millis = event.millis
+          millisPerTick = event.millisPerTick
+          secondsPerTick = event.secondsPerTick
+          //console.log(millisPerTick,event.millisPerTick);
+          //console.log(event);
+          break
+
+        case 0x58:
+          factor = event.factor
+          nominator = event.nominator
+          denominator = event.denominator
+          numSixteenth = event.numSixteenth
+          ticksPerBar = event.ticksPerBar
+          ticksPerBeat = event.ticksPerBeat
+          ticksPerSixteenth = event.ticksPerSixteenth
+          millis = event.millis
+          //console.log(nominator,numSixteenth,ticksPerSixteenth);
+          //console.log(event);
+          break
+
+        default:
+          millis = millis + diffTicks * millisPerTick
+          updateEvent(event)
+      }
+
+      lastEventTick = event.ticks
     }
+    song.lastEventTmp = event
+  }
 
+  function getDataFromEvent(event) {
+    bpm = event.bpm
+    factor = event.factor
+    nominator = event.nominator
+    denominator = event.denominator
 
-    function getDataFromEvent(event){
+    ticksPerBar = event.ticksPerBar
+    ticksPerBeat = event.ticksPerBeat
+    ticksPerSixteenth = event.ticksPerSixteenth
 
-        bpm = event.bpm;
-        factor = event.factor;
-        nominator = event.nominator;
-        denominator = event.denominator;
+    numSixteenth = event.numSixteenth
 
-        ticksPerBar = event.ticksPerBar;
-        ticksPerBeat = event.ticksPerBeat;
-        ticksPerSixteenth = event.ticksPerSixteenth;
+    millisPerTick = event.millisPerTick
+    secondsPerTick = event.secondsPerTick
 
-        numSixteenth = event.numSixteenth;
+    millis = event.millis
 
-        millisPerTick = event.millisPerTick;
-        secondsPerTick = event.secondsPerTick;
+    bar = event.bar
+    beat = event.beat
+    sixteenth = event.sixteenth
+    tick = event.tick
+  }
 
-        millis = event.millis;
+  function updateEvent(event) {
+    var timeData, tickAsString
 
-        bar = event.bar;
-        beat = event.beat;
-        sixteenth = event.sixteenth;
-        tick = event.tick;
-    }
+    timeData = sequencer.getNiceTime(millis)
 
+    event.bpm = bpm
+    event.factor = factor
+    event.nominator = nominator
+    event.denominator = denominator
 
-    function updateEvent(event){
-        var timeData, tickAsString;
+    event.ticksPerBar = ticksPerBar
+    event.ticksPerBeat = ticksPerBeat
+    event.ticksPerSixteenth = ticksPerSixteenth
 
-        timeData = sequencer.getNiceTime(millis);
+    event.numSixteenth = numSixteenth
 
-        event.bpm = bpm;
-        event.factor = factor;
-        event.nominator = nominator;
-        event.denominator = denominator;
+    event.millisPerTick = millisPerTick
+    event.secondsPerTick = secondsPerTick
 
-        event.ticksPerBar = ticksPerBar;
-        event.ticksPerBeat = ticksPerBeat;
-        event.ticksPerSixteenth = ticksPerSixteenth;
+    event.millis = round(millis * precision) / precision
+    //event.millis = millis;
+    //event.seconds = millis/1000;
 
-        event.numSixteenth = numSixteenth;
+    event.hour = timeData.hour
+    event.minute = timeData.minute
+    event.second = timeData.second
+    event.millisecond = timeData.millisecond
+    event.timeAsString = timeData.timeAsString
+    event.timeAsArray = timeData.timeAsArray
 
-        event.millisPerTick = millisPerTick;
-        event.secondsPerTick = secondsPerTick;
+    event.bar = bar
+    event.beat = beat
+    event.sixteenth = sixteenth
+    event.tick = tick
+    tickAsString =
+      tick === 0
+        ? '000'
+        : tick < 10
+          ? '00' + tick
+          : tick < 100
+            ? '0' + tick
+            : tick
+    event.barsAsString = bar + ':' + beat + ':' + sixteenth + ':' + tickAsString
+    event.barsAsArray = [bar, beat, sixteenth, tick]
 
-        event.millis = round(millis * precision)/precision;
-        //event.millis = millis;
-        //event.seconds = millis/1000;
+    event.state = 'clean'
+    event.update()
 
-        event.hour = timeData.hour;
-        event.minute = timeData.minute;
-        event.second = timeData.second;
-        event.millisecond = timeData.millisecond;
-        event.timeAsString = timeData.timeAsString;
-        event.timeAsArray = timeData.timeAsArray;
+    //console.log(event.nominator, event.ticks);
+  }
 
-        event.bar = bar;
-        event.beat = beat;
-        event.sixteenth = sixteenth;
-        event.tick = tick;
-        tickAsString = tick === 0 ? '000' : tick < 10 ? '00' + tick : tick < 100 ? '0' + tick : tick;
-        event.barsAsString = bar + ':' + beat + ':' + sixteenth + ':' + tickAsString;
-        event.barsAsArray = [bar, beat, sixteenth, tick];
+  sequencer.protectedScope.parseEvents = parse
 
-        event.state = 'clean';
-        event.update();
-
-        //console.log(event.nominator, event.ticks);
-    }
-
-
-
-    sequencer.protectedScope.parseEvents = parse;
-
-    sequencer.protectedScope.addInitMethod(function(){
-    });
-
-}());
+  sequencer.protectedScope.addInitMethod(function() {})
+})()

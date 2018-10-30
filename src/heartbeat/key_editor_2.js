@@ -1,29 +1,22 @@
-(function(){
+;(function() {
+  'use strict'
 
-    'use strict';
+  var // satisfy jslint
+    sequencer = window.sequencer,
+    console = window.console,
+    //import
+    typeString // defined in util.js
 
-    var
-        // satisfy jslint
-        sequencer = window.sequencer,
-        console = window.console,
-
-        //import
-        typeString; // defined in util.js
-
-    /*
+  /*
         config:
             - song
 
     */
-    function createKeyEditor2(config){
+  function createKeyEditor2(config) {}
 
+  sequencer.createKeyEditor2 = createKeyEditor2
 
-    }
-
-    sequencer.createKeyEditor2 = createKeyEditor2;
-
-    sequencer.protectedScope.addInitMethod(function(){
-        typeString = sequencer.protectedScope.typeString;
-    });
-
-}());
+  sequencer.protectedScope.addInitMethod(function() {
+    typeString = sequencer.protectedScope.typeString
+  })
+})()
