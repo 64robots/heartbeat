@@ -370,21 +370,13 @@ if (typeof module !== "undefined" && module !== null) {
 
     if(window.AudioContext){
         context = new window.AudioContext();
-        console.log(1);
-        if(context.createGainNode === undefined){
-            context.createGainNode = context.createGain;
-        }
     }else if(window.webkitAudioContext){
-        console.log(2);
         context = new window.webkitAudioContext();
     }else if(window.oAudioContext){
-        console.log(3);
         context = new window.oAudioContext();
     }else if(window.msAudioContext){
-        console.log(4);
         context = new window.msAudioContext();
     }else{
-        console.log(5);        
         //alert('Your browser does not support AudioContext!\n\nPlease use one of these browsers:\n\n- Chromium (Linux | Windows)\n- Firefox (OSX | Windows)\n- Chrome (Linux | Android | OSX | Windows)\n- Canary (OSX | Windows)\n- Safari (iOS 6.0+ | OSX)\n\nIf you use Chrome or Chromium, heartbeat uses the WebMIDI api');
         window.sequencer = {
             browser: browser,
@@ -395,6 +387,10 @@ if (typeof module !== "undefined" && module !== null) {
             cb();
         };
         return;
+    }
+
+    if(context.createGainNode === undefined){
+        context.createGainNode = context.createGain;
     }
 
     // check for older implementations of WebAudio
