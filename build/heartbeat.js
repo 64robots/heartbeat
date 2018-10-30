@@ -2677,7 +2677,7 @@ if (typeof module !== "undefined" && module !== null) {
 /*
     controls the playback of the audio events in a track
 */
-(function(){
+;(function(){
 
     'use strict';
 
@@ -3054,7 +3054,7 @@ if (typeof module !== "undefined" && module !== null) {
 
 */
 
-(function(){
+;(function(){
 
     'use strict';
 
@@ -13192,7 +13192,7 @@ if (typeof module !== "undefined" && module !== null) {
 */
   })
 })()
-(function(){
+;(function(){
 
     'use strict';
 
@@ -20388,7 +20388,7 @@ return;
     copyName = protectedScope.copyName
   })
 })()
-(function(){
+;(function(){
 
     'use strict';
 
