@@ -874,9 +874,9 @@ if (typeof module !== "undefined" && module !== null) {
 
   if (window.AudioContext) {
     context = new window.AudioContext()
-    // if(context.createGainNodeNode === undefined){
-    //     context.createGainNodeNode = context.createGainNode;
-    // }
+    if(context.createGainNode === undefined){
+        context.createGainNode = context.createGainNode;
+    }
   } else if (window.webkitAudioContext) {
     context = new window.webkitAudioContext()
   } else if (window.oAudioContext) {
