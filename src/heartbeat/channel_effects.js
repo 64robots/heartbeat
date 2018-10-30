@@ -29,9 +29,9 @@
     this.bypass = false
     this.amount = 0 //0.5;
 
-    this.output = context.createGain()
-    this.wetGain = context.createGain()
-    this.dryGain = context.createGain()
+    this.output = context.createGainNode()
+    this.wetGain = context.createGainNode()
+    this.dryGain = context.createGainNode()
     this.output.gain.value = 1
     this.wetGain.gain.value = this.amount
     this.dryGain.gain.value = 1 - this.amount

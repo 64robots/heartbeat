@@ -229,7 +229,7 @@
         this.followEvent = createFollowEvent(this);
 
         this.volume = 1;
-        this.gainNode = context.createGain();
+        this.gainNode = context.createGainNode();
         this.gainNode.gain.value = this.volume;
         this.metronome = createMetronome(this, dispatchEvent);
         this.connect();

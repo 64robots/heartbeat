@@ -71,8 +71,8 @@
 
   if (window.AudioContext) {
     context = new window.AudioContext()
-    // if(context.createGainNode === undefined){
-    //     context.createGainNode = context.createGain;
+    // if(context.createGainNodeNode === undefined){
+    //     context.createGainNodeNode = context.createGainNode;
     // }
   } else if (window.webkitAudioContext) {
     context = new window.webkitAudioContext()
@@ -127,7 +127,7 @@
   compressor = context.createDynamicsCompressor()
   compressor.connect(context.destination)
   //console.log(compressor);
-  gainNode = context.createGain()
+  gainNode = context.createGainNode()
   //gainNode.connect(compressor);
   gainNode.connect(context.destination)
   gainNode.gain.value = 1

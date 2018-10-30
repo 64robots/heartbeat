@@ -65,10 +65,10 @@
     this.numEffects = 0
     this.volume = 1
 
-    this.input = context.createGain()
+    this.input = context.createGainNode()
     this.input.gain.value = 1
 
-    this.output = context.createGain()
+    this.output = context.createGainNode()
     this.output.gain.value = this.volume
     this.panner = createPanner()
     // input to panner

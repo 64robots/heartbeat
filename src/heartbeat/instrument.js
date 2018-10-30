@@ -924,7 +924,7 @@
         var osc = context.createOscillator();
         osc.frequency.value = 50;
         osc.type = 0;
-        var gain = context.createGain();
+        var gain = context.createGainNode();
         gain.gain.value = 1;
         osc.connect(gain);
         gain.connect(context.destination);

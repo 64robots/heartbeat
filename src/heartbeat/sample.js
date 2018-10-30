@@ -22,7 +22,7 @@
     SampleSustainReleasePanning,
     Sample = function(config) {
       this.id = getSampleId()
-      this.output = context.createGain()
+      this.output = context.createGainNode()
       this.output.connect(config.track.input)
       this.buffer = config.buffer
       if (this.buffer) {
