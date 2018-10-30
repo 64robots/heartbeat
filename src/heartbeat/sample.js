@@ -1,399 +1,402 @@
-(function(){
+;(function() {
+  'use strict'
 
-    'use strict';
+  var // satisfy jslint
+    sequencer = window.sequencer,
+    console = window.console,
+    //import
+    context, // defined in open_module.js
+    timedTasks, // defined in open_module.js
+    legacy, // defined in open_module.js
+    typeString, // defined in util.js
+    getSampleId, // defined in open_module.js
+    createPanner, // defined in effects.js
+    getEqualPowerCurve, // defined in util.js
+    //private
+    stopSample,
+    fadeOut,
+    SampleSynth,
+    SampleRelease,
+    SampleSustainRelease,
+    SampleReleasePanning,
+    SampleSustainReleasePanning,
+    Sample = function(config) {
+      this.id = getSampleId()
+      this.output = context.createGain()
+      this.output.connect(config.track.input)
+      this.buffer = config.buffer
+      if (this.buffer) {
+        this.duration = this.buffer.duration
+      }
+      this.noteNumber = config.noteNumber
+      this.stopCallback = function() {}
+      this.track = config.track
+      //console.log(this.buffer, this.noteNumber)
+    }
 
-    var
-        // satisfy jslint
-        sequencer = window.sequencer,
-        console = window.console,
+  stopSample = function(sample, time) {
+    sample.source.onended = function() {
+      sample.stopCallback(sample)
+    }
+    time = time || 0
+    try {
+      sample.source.stop(time)
+    } catch (e) {
+      console.log(e)
+    }
+  }
 
-        //import
-        context, // defined in open_module.js
-        timedTasks, // defined in open_module.js
-        legacy, // defined in open_module.js
-        typeString, // defined in util.js
-        getSampleId, // defined in open_module.js
-        createPanner, // defined in effects.js
-        getEqualPowerCurve, // defined in util.js
+  fadeOut = function(sample) {
+    var now = context.currentTime,
+      values,
+      i,
+      maxi
 
-        //private
-        stopSample,
-        fadeOut,
+    //console.log(sample.releaseEnvelope);
+    switch (sample.releaseEnvelope) {
+      case 'linear':
+        sample.output.gain.linearRampToValueAtTime(sample.volume, now)
+        sample.output.gain.linearRampToValueAtTime(
+          0,
+          now + sample.releaseDuration
+        )
+        break
 
-        SampleSynth,
-        SampleRelease,
-        SampleSustainRelease,
-        SampleReleasePanning,
-        SampleSustainReleasePanning,
+      case 'equal power':
+        values = getEqualPowerCurve(100, 'fadeOut', sample.volume)
+        sample.output.gain.setValueCurveAtTime(
+          values,
+          now,
+          sample.releaseDuration
+        )
+        break
 
-
-    Sample = function(config){
-        this.id = getSampleId();
-        this.output = context.createGainNode();
-        this.output.connect(config.track.input);
-        this.buffer = config.buffer;
-        if(this.buffer){
-            this.duration = this.buffer.duration;
+      case 'array':
+        maxi = sample.releaseEnvelopeArray.length
+        values = new Float32Array(maxi)
+        for (i = 0; i < maxi; i++) {
+          values[i] = sample.releaseEnvelopeArray[i] * sample.volume
         }
-        this.noteNumber = config.noteNumber;
-        this.stopCallback = function(){};
-        this.track = config.track;
-        //console.log(this.buffer, this.noteNumber)
-    };
+        sample.output.gain.setValueCurveAtTime(
+          values,
+          now,
+          sample.releaseDuration
+        )
+        break
+    }
+  }
 
+  Sample.prototype.addData = function(obj) {
+    this.sourceId = obj.sourceId
+    this.noteName = obj.noteName
+    this.midiNote = obj.midiNote
+  }
 
-    stopSample = function(sample, time){
-        sample.source.onended = function(){
-            sample.stopCallback(sample);
-        };
-        time = time || 0;
-        try{
-            sample.source.stop(time);
-        }catch(e){
-            console.log(e);
+  Sample.prototype.createSource = function() {
+    // overrule to do or add other stuff
+    this.source = context.createBufferSource()
+    this.source.buffer = this.buffer
+  }
+
+  Sample.prototype.route = function() {
+    // overrule to do or add other stuff
+    this.source.connect(this.output)
+  }
+
+  // called on a NOTE ON event
+  Sample.prototype.start = function(event) {
+    //console.log('NOTE ON', time, velocity);
+    if (this.source !== undefined) {
+      console.error('this should never happen')
+      return
+    }
+
+    this.volume = event.velocity / 127
+    this.output.gain.value = this.volume
+
+    this.createSource()
+    this.phase = 'decay' // -> naming of phases is not completely correct, we skip attack
+    this.route()
+
+    if (legacy === true) {
+      this.source.start = this.source.noteOn
+      this.source.stop = this.source.noteOff
+    }
+
+    try {
+      // if(event.offset !== undefined){
+      //     console.log(event.offset);
+      // }
+      this.source.start(
+        event.time,
+        event.offset || 0,
+        event.duration || this.duration
+      )
+      //this.source.start(event.time);
+      //console.log('start', event.time, event.offset, event.duration, sequencer.getTime());
+      //console.log('start', time, sequencer.getTime());
+    } catch (e) {
+      console.warn(e)
+    }
+  }
+
+  // called on a NOTE OFF event
+  Sample.prototype.stop = function(seconds, cb) {
+    //console.log('NOTE OFF', cb);
+    //console.log('NOTE OFF', this.source);
+    //console.log('NOTE OFF', this.release);
+    if (this.source === undefined) {
+      if (sequencer.debug) {
+        console.log('Sample.stop() source is undefined')
+      }
+      return
+    }
+
+    // this happens when midi events are sent live from a midi device
+    if (seconds === 0 || seconds === undefined) {
+      //console.log('seconds is undefined!');
+      seconds = sequencer.getTime()
+    }
+    this.stopCallback = cb || function() {}
+
+    if (this.release) {
+      this.source.loop = false
+      this.startReleasePhase = seconds
+      this.stopTime = seconds + this.releaseDuration
+      //console.log(this.stopTime, seconds, this.releaseDuration);
+    } else {
+      stopSample(this, seconds)
+    }
+  }
+
+  Sample.prototype.unschedule = function(when, cb) {
+    var now = context.currentTime,
+      sample = this,
+      fadeOut = when === null ? 100 : when //milliseconds
+
+    this.source.onended = undefined
+    this.output.gain.cancelScheduledValues(now)
+    //console.log(this.volume, now);
+    //this.output.gain.linearRampToValueAtTime(this.volume, now);
+
+    try {
+      this.output.gain.linearRampToValueAtTime(0, now + fadeOut / 1000) // fade out in seconds
+
+      timedTasks['unschedule_' + this.id] = {
+        time: now + fadeOut / 1000,
+        execute: function() {
+          if (!sample) {
+            console.log('sample is gone')
+            return
+          }
+          if (sample.panner) {
+            sample.panner.node.disconnect(0)
+          }
+          if (sample.source !== undefined) {
+            sample.source.disconnect(0)
+            sample.source = undefined
+          }
+          if (cb) {
+            cb(sample)
+          }
         }
-    };
+      }
+    } catch (e) {
+      // firefox gives sometimes an error "SyntaxError: An invalid or illegal string was specified"
+      console.log(e)
+    }
+  }
 
+  // called every frame
+  Sample.prototype.update = function(value) {
+    var doLog =
+      this.track.name === 'Sonata # 3' &&
+      this.track.song.bar >= 6 &&
+      this.track.song.bar <= 10
+    //var doLog = true;
+    //console.log('update', this.phase);
+    if (this.autopan) {
+      this.panner.setPosition(value)
+    }
 
-    fadeOut = function(sample){
-        var now = context.currentTime,
-            values,
-            i, maxi;
+    if (
+      this.startReleasePhase !== undefined &&
+      context.currentTime >= this.startReleasePhase &&
+      this.phase === 'decay'
+    ) {
+      if (doLog === true) {
+        console.log(this.phase, '-> release', this.releaseDuration)
+      }
+      this.phase = 'release'
+      fadeOut(this)
+    } else if (
+      this.stopTime !== undefined &&
+      context.currentTime >= this.stopTime &&
+      this.phase === 'release'
+    ) {
+      if (doLog === true) {
+        console.log(
+          this.phase,
+          '-> stopped',
+          this.stopTime,
+          context.currentTime
+        )
+      }
+      this.phase = 'stopped'
+      stopSample(this)
+    }
+  }
 
-        //console.log(sample.releaseEnvelope);
-        switch(sample.releaseEnvelope){
+  sequencer.createSample = function(config) {
+    var debug = false
+    //return new Sample(config);
+    //console.log(config.release_duration);
+    if (debug) console.log(config)
 
-            case 'linear':
-                sample.output.gain.linearRampToValueAtTime(sample.volume, now);
-                sample.output.gain.linearRampToValueAtTime(0, now + sample.releaseDuration);
-                break;
+    if (config.oscillator) {
+      if (debug) console.log('synth')
+      return new SampleSynth(config)
+    } else if (config.sustain && config.release && config.panning) {
+      if (debug) console.log('sustain, release, panning')
+      return new SampleSustainReleasePanning(config)
+    } else if (config.release && config.panning) {
+      if (debug) console.log('release, panning')
+      return new SampleReleasePanning(config)
+    } else if (config.release && config.sustain) {
+      if (debug) console.log('release, sustain')
+      return new SampleSustainRelease(config)
+    } else if (config.release) {
+      if (debug) console.log('release')
+      return new SampleRelease(config)
+    } else {
+      if (debug) console.log('simple')
+      return new Sample(config)
+    }
+  }
 
-            case 'equal power':
-                values = getEqualPowerCurve(100, 'fadeOut', sample.volume);
-                sample.output.gain.setValueCurveAtTime(values, now, sample.releaseDuration);
-                break;
+  sequencer.protectedScope.addInitMethod(function() {
+    var createClass = sequencer.protectedScope.createClass
 
-            case 'array':
-                maxi = sample.releaseEnvelopeArray.length;
-                values = new Float32Array(maxi);
-                for(i = 0; i < maxi; i++){
-                    values[i] = sample.releaseEnvelopeArray[i] * sample.volume;
-                }
-                sample.output.gain.setValueCurveAtTime(values, now, sample.releaseDuration);
-                break;
-        }
-    };
+    context = sequencer.protectedScope.context
+    timedTasks = sequencer.protectedScope.timedTasks
+    getEqualPowerCurve = sequencer.util.getEqualPowerCurve
+    legacy = sequencer.legacy
+    getSampleId = sequencer.protectedScope.getSampleId
+    typeString = sequencer.protectedScope.typeString
+    createPanner = sequencer.createPanner
 
+    SampleRelease = createClass(Sample, function(config) {
+      this.release = true
 
-    Sample.prototype.addData = function(obj){
-        this.sourceId = obj.sourceId;
-        this.noteName = obj.noteName;
-        this.midiNote = obj.midiNote;
-    };
+      this.releaseDuration = config.release_duration / 1000
+      this.releaseEnvelope = config.release_envelope
+      //console.log(this.releaseDuration, this.releaseEnvelope);
+    })
 
-    Sample.prototype.createSource = function(){
-        // overrule to do or add other stuff
-        this.source = context.createBufferSource();
-        this.source.buffer = this.buffer;
-    };
+    SampleSustainRelease = createClass(Sample, function(config) {
+      this.release = true
 
-    Sample.prototype.route = function(){
-        // overrule to do or add other stuff
-        this.source.connect(this.output);
-    };
+      this.sustainStart = config.sustain_start / 1000
+      this.sustainEnd = config.sustain_end / 1000
+      this.releaseDuration = config.release_duration / 1000
+      this.releaseEnvelope = config.release_envelope
+      if (this.releaseEnvelope === undefined) {
+        this.releaseEnvelope = 'equal power'
+      } else if (typeString(this.releaseEnvelope) === 'array') {
+        this.releaseEnvelopeArray = config.release_envelope_array
+        this.releaseEnvelope = 'array'
+      }
+    })
 
+    SampleSustainRelease.prototype.route = function() {
+      this.source.loop = true
+      this.source.loopStart = this.sustainStart
+      this.source.loopEnd = this.sustainEnd
+      this.source.connect(this.output)
+      //console.log(this.sustainStart, this.sustainEnd);
+    }
 
-    // called on a NOTE ON event
-    Sample.prototype.start = function(event){
-        //console.log('NOTE ON', time, velocity);
-        if(this.source !== undefined){
-            console.error('this should never happen');
-            return;
-        }
+    SampleReleasePanning = createClass(Sample, function(config) {
+      this.release = true
 
-        this.volume = event.velocity/127;
-        this.output.gain.value = this.volume;
+      this.releaseDuration = config.release_duration / 1000
+      this.releaseEnvelope = config.release_envelope
+      if (this.releaseEnvelope === undefined) {
+        this.releaseEnvelope = 'equal power'
+      } else if (typeString(this.releaseEnvelope) === 'array') {
+        this.releaseEnvelopeArray = config.release_envelope_array
+        this.releaseEnvelope = 'array'
+      }
+      this.panPosition = config.panPosition
+    })
 
-        this.createSource();
-        this.phase = 'decay'; // -> naming of phases is not completely correct, we skip attack
-        this.route();
+    SampleReleasePanning.prototype.route = function() {
+      //console.log(this.panning);
+      this.panner = createPanner()
+      this.panner.setPosition(this.panPosition || 0)
+      this.source.connect(this.panner.node)
+      this.panner.node.connect(this.output)
+    }
 
-        if(legacy === true){
-            this.source.start = this.source.noteOn;
-            this.source.stop = this.source.noteOff;
-        }
+    SampleSustainReleasePanning = createClass(Sample, function(config) {
+      this.release = true
 
-        try{
-            // if(event.offset !== undefined){
-            //     console.log(event.offset);
-            // }
-            this.source.start(event.time, event.offset || 0, event.duration || this.duration);
-            //this.source.start(event.time);
-            //console.log('start', event.time, event.offset, event.duration, sequencer.getTime());
-            //console.log('start', time, sequencer.getTime());
-        }catch(e){
-            console.warn(e);
-        }
-    };
+      this.sustainStart = config.sustain_start / 1000
+      this.sustainEnd = config.sustain_end / 1000
+      this.releaseDuration = config.release_duration / 1000
+      this.releaseEnvelope = config.release_envelope
+      if (this.releaseEnvelope === undefined) {
+        this.releaseEnvelope = 'equal power'
+      } else if (typeString(this.releaseEnvelope) === 'array') {
+        this.releaseEnvelopeArray = config.release_envelope_array
+        this.releaseEnvelope = 'array'
+      }
+      this.panPosition = config.panPosition
+    })
 
+    SampleSustainReleasePanning.prototype.route = function() {
+      this.source.loop = true
+      this.source.loopStart = this.sustainStart
+      this.source.loopEnd = this.sustainEnd
 
-    // called on a NOTE OFF event
-    Sample.prototype.stop = function(seconds, cb){
-        //console.log('NOTE OFF', cb);
-        //console.log('NOTE OFF', this.source);
-        //console.log('NOTE OFF', this.release);
-        if(this.source === undefined){
-            if(sequencer.debug){
-                console.log('Sample.stop() source is undefined');
-            }
-            return;
-        }
+      this.panner = createPanner()
+      this.panner.setPosition(this.panPosition || 0)
+      this.source.connect(this.panner.node)
+      this.panner.node.connect(this.output)
+    }
 
-        // this happens when midi events are sent live from a midi device
-        if(seconds === 0 || seconds === undefined){
-            //console.log('seconds is undefined!');
-            seconds = sequencer.getTime();
-        }
-        this.stopCallback = cb || function(){};
+    SampleSynth = createClass(Sample, function(config) {
+      this.release = true
+      this.panPosition = 0
+      this.autopan = config.autopan || false
+      this.frequency = config.event.frequency
+      this.waveForm = config.wave_form || 0
+      this.releaseDuration = config.release_duration / 1000 || 1.5
+      this.releaseEnvelope = config.release_envelope || 'equal power'
+      //console.log(config);
+    })
 
-        if(this.release){
-            this.source.loop = false;
-            this.startReleasePhase = seconds;
-            this.stopTime = seconds + this.releaseDuration;
-            //console.log(this.stopTime, seconds, this.releaseDuration);
-        }else{
-            stopSample(this, seconds);
-        }
-    };
+    SampleSynth.prototype.createSource = function() {
+      this.source = context.createOscillator()
+      this.source.type = this.waveForm
+      this.source.frequency.value = this.frequency
+    }
 
+    SampleSynth.prototype.route = function() {
+      //create some headroom for multi-timbrality
+      this.volume *= 0.3
+      this.output.gain.value = this.volume
 
-    Sample.prototype.unschedule = function(when, cb){
-        var now = context.currentTime,
-            sample = this,
-            fadeOut = when === null ? 100 : when;//milliseconds
-
-        this.source.onended = undefined;
-        this.output.gain.cancelScheduledValues(now);
-        //console.log(this.volume, now);
-        //this.output.gain.linearRampToValueAtTime(this.volume, now);
-
-        try{
-            this.output.gain.linearRampToValueAtTime(0, now + fadeOut/1000); // fade out in seconds
-
-            timedTasks['unschedule_' + this.id] = {
-                time: now + fadeOut/1000,
-                execute: function(){
-                    if(!sample){
-                        console.log('sample is gone');
-                        return;
-                    }
-                    if(sample.panner){
-                        sample.panner.node.disconnect(0);
-                    }
-                    if(sample.source !== undefined){
-                        sample.source.disconnect(0);
-                        sample.source = undefined;
-                    }
-                    if(cb){
-                        cb(sample);
-                    }
-                }
-            };
-        }catch(e){
-            // firefox gives sometimes an error "SyntaxError: An invalid or illegal string was specified"
-            console.log(e);
-        }
-
-    };
-
-
-    // called every frame
-    Sample.prototype.update = function(value){
-        var doLog = this.track.name === 'Sonata # 3' && this.track.song.bar >= 6 && this.track.song.bar <= 10;
-        //var doLog = true;
-        //console.log('update', this.phase);
-        if(this.autopan){
-            this.panner.setPosition(value);
-        }
-
-        if(this.startReleasePhase !== undefined && context.currentTime >= this.startReleasePhase && this.phase === 'decay'){
-            if(doLog === true){
-                console.log(this.phase, '-> release', this.releaseDuration);
-            }
-            this.phase = 'release';
-            fadeOut(this);
-        }else if(this.stopTime !== undefined && context.currentTime >= this.stopTime && this.phase === 'release'){
-            if(doLog === true){
-                console.log(this.phase, '-> stopped', this.stopTime, context.currentTime);
-            }
-            this.phase = 'stopped';
-            stopSample(this);
-        }
-    };
-
-
-    sequencer.createSample = function(config){
-        var debug = false;
-        //return new Sample(config);
-        //console.log(config.release_duration);
-        if(debug)console.log(config);
-
-        if(config.oscillator){
-            if(debug)console.log('synth');
-            return new SampleSynth(config);
-
-        }else if(config.sustain && config.release && config.panning){
-            if(debug)console.log('sustain, release, panning');
-            return new SampleSustainReleasePanning(config);
-
-        }else if(config.release && config.panning){
-            if(debug)console.log('release, panning');
-            return new SampleReleasePanning(config);
-
-        }else if(config.release && config.sustain){
-            if(debug)console.log('release, sustain');
-            return new SampleSustainRelease(config);
-
-        }else if(config.release){
-            if(debug)console.log('release');
-            return new SampleRelease(config);
-
-        }else{
-            if(debug)console.log('simple');
-            return new Sample(config);
-        }
-    };
-
-
-    sequencer.protectedScope.addInitMethod(function(){
-        var createClass = sequencer.protectedScope.createClass;
-
-        context = sequencer.protectedScope.context;
-        timedTasks = sequencer.protectedScope.timedTasks;
-        getEqualPowerCurve = sequencer.util.getEqualPowerCurve;
-        legacy = sequencer.legacy;
-        getSampleId = sequencer.protectedScope.getSampleId;
-        typeString = sequencer.protectedScope.typeString;
-        createPanner = sequencer.createPanner;
-
-
-        SampleRelease = createClass(Sample, function(config){
-            this.release = true;
-
-            this.releaseDuration = config.release_duration/1000;
-            this.releaseEnvelope = config.release_envelope;
-            //console.log(this.releaseDuration, this.releaseEnvelope);
-        });
-
-
-        SampleSustainRelease = createClass(Sample, function(config){
-            this.release = true;
-
-            this.sustainStart = config.sustain_start/1000;
-            this.sustainEnd = config.sustain_end/1000;
-            this.releaseDuration = config.release_duration/1000;
-            this.releaseEnvelope = config.release_envelope;
-            if(this.releaseEnvelope === undefined){
-                this.releaseEnvelope = 'equal power';
-            }else if(typeString(this.releaseEnvelope) === 'array'){
-                this.releaseEnvelopeArray = config.release_envelope_array;
-                this.releaseEnvelope = 'array';
-            }
-        });
-
-        SampleSustainRelease.prototype.route = function(){
-            this.source.loop = true;
-            this.source.loopStart = this.sustainStart;
-            this.source.loopEnd = this.sustainEnd;
-            this.source.connect(this.output);
-            //console.log(this.sustainStart, this.sustainEnd);
-        };
-
-
-        SampleReleasePanning = createClass(Sample, function(config){
-            this.release = true;
-
-            this.releaseDuration = config.release_duration/1000;
-            this.releaseEnvelope = config.release_envelope;
-            if(this.releaseEnvelope === undefined){
-                this.releaseEnvelope = 'equal power';
-            }else if(typeString(this.releaseEnvelope) === 'array'){
-                this.releaseEnvelopeArray = config.release_envelope_array;
-                this.releaseEnvelope = 'array';
-            }
-            this.panPosition = config.panPosition;
-        });
-
-
-        SampleReleasePanning.prototype.route = function(){
-            //console.log(this.panning);
-            this.panner = createPanner();
-            this.panner.setPosition(this.panPosition || 0);
-            this.source.connect(this.panner.node);
-            this.panner.node.connect(this.output);
-        };
-
-        SampleSustainReleasePanning = createClass(Sample, function(config){
-            this.release = true;
-
-            this.sustainStart = config.sustain_start/1000;
-            this.sustainEnd = config.sustain_end/1000;
-            this.releaseDuration = config.release_duration/1000;
-            this.releaseEnvelope = config.release_envelope;
-            if(this.releaseEnvelope === undefined){
-                this.releaseEnvelope = 'equal power';
-            }else if(typeString(this.releaseEnvelope) === 'array'){
-                this.releaseEnvelopeArray = config.release_envelope_array;
-                this.releaseEnvelope = 'array';
-            }
-            this.panPosition = config.panPosition;
-        });
-
-
-        SampleSustainReleasePanning.prototype.route = function(){
-            this.source.loop = true;
-            this.source.loopStart = this.sustainStart;
-            this.source.loopEnd = this.sustainEnd;
-
-            this.panner = createPanner();
-            this.panner.setPosition(this.panPosition || 0);
-            this.source.connect(this.panner.node);
-            this.panner.node.connect(this.output);
-        };
-
-
-        SampleSynth = createClass(Sample, function(config){
-            this.release = true;
-            this.panPosition = 0;
-            this.autopan = config.autopan || false;
-            this.frequency = config.event.frequency;
-            this.waveForm = config.wave_form || 0;
-            this.releaseDuration = config.release_duration/1000 || 1.5;
-            this.releaseEnvelope = config.release_envelope || 'equal power';
-            //console.log(config);
-        });
-
-        SampleSynth.prototype.createSource = function(){
-            this.source = context.createOscillator();
-            this.source.type = this.waveForm;
-            this.source.frequency.value = this.frequency;
-        };
-
-        SampleSynth.prototype.route = function(){
-            //create some headroom for multi-timbrality
-            this.volume *= 0.3;
-            this.output.gain.value = this.volume;
-
-            if(this.autopan){
-                this.panner = createPanner();
-                this.panner.setPosition(0);
-                this.source.connect(this.panner.node);
-                this.panner.node.connect(this.output);
-            }else{
-                this.source.connect(this.output);
-            }
-        };
-/*
+      if (this.autopan) {
+        this.panner = createPanner()
+        this.panner.setPosition(0)
+        this.source.connect(this.panner.node)
+        this.panner.node.connect(this.output)
+      } else {
+        this.source.connect(this.output)
+      }
+    }
+    /*
         SampleSynth.prototype.createSource = function(){
             this.autoPanner = context.createOscillator();
             this.autoPanner.type = 0;
@@ -424,5 +427,5 @@
             this.output.gain.value = this.volume;
         };
 */
-    });
-}());
+  })
+})()

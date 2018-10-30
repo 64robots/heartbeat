@@ -40,6 +40,9 @@ https://github.com/cwilso/WebMIDIAPIShim
 
 */
 
+
+
+
 /* Copyright 2013 Chris Wilson
 
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -798,108 +801,112 @@ if (typeof module !== "undefined" && module !== null) {
     return saveAs;
   });
 }
-(function(){
+;(function() {
+  'use strict'
 
-    'use strict';
+  var // satisfy jslint
+    alert = window.alert,
+    console = window.console,
+    protectedScope,
+    initMethods = [],
+    src,
+    context,
+    gainNode,
+    compressor,
+    sampleIndex = 0,
+    compressorParams = [
+      'threshold',
+      'knee',
+      'ratio',
+      'reduction',
+      'attack',
+      'release'
+    ],
+    ua = navigator.userAgent,
+    os,
+    browser,
+    legacy = false
 
-    var
-        // satisfy jslint
-        alert = window.alert,
-        console = window.console,
+  if (ua.match(/(iPad|iPhone|iPod)/g)) {
+    os = 'ios'
+  } else if (ua.indexOf('Android') !== -1) {
+    os = 'android'
+  } else if (ua.indexOf('Linux') !== -1) {
+    os = 'linux'
+  } else if (ua.indexOf('Macintosh') !== -1) {
+    os = 'osx'
+  } else if (ua.indexOf('Windows') !== -1) {
+    os = 'windows'
+  }
 
-        protectedScope,
-        initMethods = [],
+  if (ua.indexOf('Chrome') !== -1) {
+    // chrome, chromium and canary
+    browser = 'chrome'
 
-        src,
-        context,
-        gainNode,
-        compressor,
-        sampleIndex = 0,
-        compressorParams = ['threshold', 'knee', 'ratio', 'reduction', 'attack', 'release'],
-
-        ua = navigator.userAgent,
-        os,
-        browser,
-        legacy = false;
-
-
-    if(ua.match(/(iPad|iPhone|iPod)/g)){
-        os = 'ios';
-    }else if(ua.indexOf('Android') !== -1){
-        os = 'android';
-    }else if(ua.indexOf('Linux') !== -1){
-        os = 'linux';
-    }else if(ua.indexOf('Macintosh') !== -1){
-        os = 'osx';
-    }else if(ua.indexOf('Windows') !== -1){
-        os = 'windows';
+    if (ua.indexOf('OPR') !== -1) {
+      browser = 'opera'
+    } else if (ua.indexOf('Chromium') !== -1) {
+      browser = 'chromium'
     }
 
-    if(ua.indexOf('Chrome') !== -1){
-        // chrome, chromium and canary
-        browser = 'chrome';
-
-        if(ua.indexOf('OPR') !== -1){
-            browser = 'opera';
-        }else if(ua.indexOf('Chromium') !== -1){
-            browser = 'chromium';
-        }
-
-        /*
+    /*
         //console.log(new Audio().canPlayType('audio/mp3'));
         if(new Audio().canPlayType('audio/mp3') !== 'probably'){
             // chromium does not support mp3
             browser = 'chromium';
         }
         */
-    }else if(ua.indexOf('Safari') !== -1){
-        browser = 'safari';
-    }else if(ua.indexOf('Firefox') !== -1){
-        browser = 'firefox';
-    }else if(ua.indexOf('Trident') !== -1){
-        browser = 'Internet Explorer';
+  } else if (ua.indexOf('Safari') !== -1) {
+    browser = 'safari'
+  } else if (ua.indexOf('Firefox') !== -1) {
+    browser = 'firefox'
+  } else if (ua.indexOf('Trident') !== -1) {
+    browser = 'Internet Explorer'
+  }
+
+  if (os === 'ios') {
+    if (ua.indexOf('CriOS') !== -1) {
+      browser = 'chrome'
     }
+  }
 
-    if(os === 'ios'){
-        if(ua.indexOf('CriOS') !== -1){
-            browser = 'chrome';
-        }
+  //console.log(os, browser, '---', ua);
+
+  if (window.AudioContext) {
+    context = new window.AudioContext()
+    // if(context.createGainNode === undefined){
+    //     context.createGainNode = context.createGain;
+    // }
+  } else if (window.webkitAudioContext) {
+    context = new window.webkitAudioContext()
+  } else if (window.oAudioContext) {
+    context = new window.oAudioContext()
+  } else if (window.msAudioContext) {
+    context = new window.msAudioContext()
+  } else {
+    //alert('Your browser does not support AudioContext!\n\nPlease use one of these browsers:\n\n- Chromium (Linux | Windows)\n- Firefox (OSX | Windows)\n- Chrome (Linux | Android | OSX | Windows)\n- Canary (OSX | Windows)\n- Safari (iOS 6.0+ | OSX)\n\nIf you use Chrome or Chromium, heartbeat uses the WebMIDI api');
+    window.sequencer = {
+      browser: browser,
+      os: os
     }
-
-    //console.log(os, browser, '---', ua);
-
-    if(window.AudioContext){
-        context = new window.AudioContext();
-        if(context.createGainNode === undefined){
-            context.createGainNode = context.createGain;
-        }
-    }else if(window.webkitAudioContext){
-        context = new window.webkitAudioContext();
-    }else if(window.oAudioContext){
-        context = new window.oAudioContext();
-    }else if(window.msAudioContext){
-        context = new window.msAudioContext();
-    }else{
-        //alert('Your browser does not support AudioContext!\n\nPlease use one of these browsers:\n\n- Chromium (Linux | Windows)\n- Firefox (OSX | Windows)\n- Chrome (Linux | Android | OSX | Windows)\n- Canary (OSX | Windows)\n- Safari (iOS 6.0+ | OSX)\n\nIf you use Chrome or Chromium, heartbeat uses the WebMIDI api');
-        window.sequencer = {
-            browser: browser,
-            os: os
-        };
-        alert('The WebAudio API hasn\'t been implemented in ' + browser + ', please use any other browser');
-        window.sequencer.ready = function(cb){
-            cb();
-        };
-        return;
+    alert(
+      "The WebAudio API hasn't been implemented in " +
+        browser +
+        ', please use any other browser'
+    )
+    window.sequencer.ready = function(cb) {
+      cb()
     }
+    return
+  }
 
-    // check for older implementations of WebAudio
-    src = context.createBufferSource();
-    if(src.start === undefined){
-        legacy = true;
-    }
+  // check for older implementations of WebAudio
+  src = context.createBufferSource()
+  if (src.start === undefined) {
+    legacy = true
+  }
 
-
-/*
+  /*
     var audioTest = new Audio();
     //wav = audioTest.canPlayType('audio/wav');// === '' ? false : true;
     canplayOgg = audioTest.canPlayType('audio/ogg');// === '' ? false : true;
@@ -908,57 +915,54 @@ if (typeof module !== "undefined" && module !== null) {
     audioTest = null;
 */
 
+  navigator.getUserMedia =
+    navigator.getUserMedia ||
+    navigator.webkitGetUserMedia ||
+    navigator.mozGetUserMedia ||
+    navigator.msGetUserMedia
 
-    navigator.getUserMedia = (
-        navigator.getUserMedia ||
-        navigator.webkitGetUserMedia ||
-        navigator.mozGetUserMedia ||
-        navigator.msGetUserMedia
-    );
+  window.requestAnimationFrame =
+    window.requestAnimationFrame || window.webkitRequestAnimationFrame
+  window.Blob = window.Blob || window.webkitBlob || window.mozBlob
 
+  //console.log('iOS', os, context, window.Blob, window.requestAnimationFrame);
 
-    window.requestAnimationFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame;
-    window.Blob = window.Blob || window.webkitBlob || window.mozBlob;
+  compressor = context.createDynamicsCompressor()
+  compressor.connect(context.destination)
+  //console.log(compressor);
+  gainNode = context.createGain()
+  //gainNode.connect(compressor);
+  gainNode.connect(context.destination)
+  gainNode.gain.value = 1
 
-    //console.log('iOS', os, context, window.Blob, window.requestAnimationFrame);
+  protectedScope = {
+    context: context,
+    //destination: context.destination,
+    masterGainNode: gainNode,
+    masterCompressor: compressor,
 
-    compressor = context.createDynamicsCompressor();
-    compressor.connect(context.destination);
-    //console.log(compressor);
-    gainNode = context.createGainNode();
-    //gainNode.connect(compressor);
-    gainNode.connect(context.destination);
-    gainNode.gain.value = 1;
+    useDelta: false,
 
+    timedTasks: {},
+    scheduledTasks: {},
+    repetitiveTasks: {},
 
-    protectedScope = {
+    getSampleId: function() {
+      return 'S' + sampleIndex++ + new Date().getTime()
+    },
 
-        context: context,
-        //destination: context.destination,
-        masterGainNode: gainNode,
-        masterCompressor: compressor,
+    addInitMethod: function(method) {
+      initMethods.push(method)
+    },
 
-        useDelta: false,
-
-        timedTasks: {},
-        scheduledTasks: {},
-        repetitiveTasks: {},
-
-        getSampleId: function(){
-            return 'S' + sampleIndex++ + new Date().getTime();
-        },
-
-        addInitMethod: function(method){
-            initMethods.push(method);
-        },
-
-        callInitMethods: function(){
-            var i, maxi = initMethods.length;
-            for(i = 0; i < maxi; i++){
-                initMethods[i]();
-            }
-        }
-/*
+    callInitMethods: function() {
+      var i,
+        maxi = initMethods.length
+      for (i = 0; i < maxi; i++) {
+        initMethods[i]()
+      }
+    }
+    /*
         log: function(msg){
             if(sequencer.debug >= 1){
                 console.log(msg);
@@ -975,7 +979,7 @@ if (typeof module !== "undefined" && module !== null) {
             }
         },
 */
-/*
+    /*
         addConstants: function(data){
             var newSequencer = {};
             Object.getOwnPropertyNames(data).forEach(function(val, idx, array) {
@@ -983,82 +987,80 @@ if (typeof module !== "undefined" && module !== null) {
             });
         };
 */
-    };
+  }
 
-
-
-    /**
+  /**
         @namespace sequencer
     */
-    window.sequencer = {
-        name: 'qambi',
-        protectedScope: protectedScope,
-        ui: {},
-        ua: ua,
-        /**
+  window.sequencer = {
+    name: 'qambi',
+    protectedScope: protectedScope,
+    ui: {},
+    ua: ua,
+    /**
             The operating system
             @alias sequencer#os
         */
-        os: os,
-        /**
+    os: os,
+    /**
             The name of thebrowser in lowercase, e.g. firefox, opera, safari, chromium, etc.
             @alias sequencer#browser
         */
-        browser: browser,
-        /**
+    browser: browser,
+    /**
             Return true if the browser uses an older version of the WebAudio API, source.noteOn() and source.noteOff instead of source.start() and source.stop()
             @alias sequencer#legacy
         */
-        legacy: false,
-        midi: false,
-        webmidi: false,
-        webaudio: true,
-        jazz: false,
-        ogg: false,
-        mp3: false,
-        record_audio: navigator.getUserMedia !== undefined,
-        bitrate_mp3_encoding: 128,
-        util: {},
-        debug: 4, // 0 = off, 1 = error, 2 = warn, 3 = info, 4 = log
-        defaultInstrument: 'sinewave',
-        pitch: 440,
-        bufferTime: 350/1000, //seconds
-        autoAdjustBufferTime: false,
-        noteNameMode: 'sharp',
-        minimalSongLength: 60000, //millis
-        pauseOnBlur: false,
-        restartOnFocus: true,
-        defaultPPQ: 960,
-        overrulePPQ: true,
-        precision: 3, // means float with precision 3, e.g. 10.437
+    legacy: false,
+    midi: false,
+    webmidi: false,
+    webaudio: true,
+    jazz: false,
+    ogg: false,
+    mp3: false,
+    record_audio: navigator.getUserMedia !== undefined,
+    bitrate_mp3_encoding: 128,
+    util: {},
+    debug: 4, // 0 = off, 1 = error, 2 = warn, 3 = info, 4 = log
+    defaultInstrument: 'sinewave',
+    pitch: 440,
+    bufferTime: 350 / 1000, //seconds
+    autoAdjustBufferTime: false,
+    noteNameMode: 'sharp',
+    minimalSongLength: 60000, //millis
+    pauseOnBlur: false,
+    restartOnFocus: true,
+    defaultPPQ: 960,
+    overrulePPQ: true,
+    precision: 3, // means float with precision 3, e.g. 10.437
 
-        midiInputs: [],
-        midiOutputs: [],
-/*
+    midiInputs: [],
+    midiOutputs: [],
+    /*
         logger: {
             clear: function(){console.log('create a logger first with sequencer.createLogger()');},
             print: function(){console.log('create a logger first with sequencer.createLogger()');}
         },
 */
-        storage: {
-            midi: {
-                id: 'midi'
-            },
-            audio: {
-                id: 'audio',
-                recordings: {}
-            },
-            instruments: {
-                id: 'instruments'
-            },
-            samplepacks: {
-                id: 'samplepacks'
-            },
-            assetpacks: {
-                id: 'assetpacks'
-            }
-        },
-/*
+    storage: {
+      midi: {
+        id: 'midi'
+      },
+      audio: {
+        id: 'audio',
+        recordings: {}
+      },
+      instruments: {
+        id: 'instruments'
+      },
+      samplepacks: {
+        id: 'samplepacks'
+      },
+      assetpacks: {
+        id: 'assetpacks'
+      }
+    },
+    /*
         createLogger: function(){
             var divLog = document.createElement('div'),
                 clear, print;
@@ -1090,39 +1092,39 @@ if (typeof module !== "undefined" && module !== null) {
             this.logger.print = print;
         },
 */
-        getTime: function(){
-            return context.currentTime;
-        },
+    getTime: function() {
+      return context.currentTime
+    },
 
-        setMasterVolume: function(value){
-            value = value < 0 ? 0 : value > 1 ? 1 : value;
-            gainNode.gain.value = value;
-        },
+    setMasterVolume: function(value) {
+      value = value < 0 ? 0 : value > 1 ? 1 : value
+      gainNode.gain.value = value
+    },
 
-        getMasterVolume: function(){
-            return gainNode.gain.value;
-        },
+    getMasterVolume: function() {
+      return gainNode.gain.value
+    },
 
-        getCompressionReduction: function(){
-            //console.log(compressor);
-            return compressor.reduction.value;
-        },
+    getCompressionReduction: function() {
+      //console.log(compressor);
+      return compressor.reduction.value
+    },
 
-        enableMasterCompressor: function(flag){
-            if(flag){
-                gainNode.disconnect(0);
-                gainNode.connect(compressor);
-                compressor.disconnect(0);
-                compressor.connect(context.destination);
-            }else{
-                compressor.disconnect(0);
-                gainNode.disconnect(0);
-                gainNode.connect(context.destination);
-            }
-        },
+    enableMasterCompressor: function(flag) {
+      if (flag) {
+        gainNode.disconnect(0)
+        gainNode.connect(compressor)
+        compressor.disconnect(0)
+        compressor.connect(context.destination)
+      } else {
+        compressor.disconnect(0)
+        gainNode.disconnect(0)
+        gainNode.connect(context.destination)
+      }
+    },
 
-        configureMasterCompressor: function(cfg){
-            /*
+    configureMasterCompressor: function(cfg) {
+      /*
                 readonly attribute AudioParam threshold; // in Decibels
                 readonly attribute AudioParam knee; // in Decibels
                 readonly attribute AudioParam ratio; // unit-less
@@ -1130,32 +1132,30 @@ if (typeof module !== "undefined" && module !== null) {
                 readonly attribute AudioParam attack; // in Seconds
                 readonly attribute AudioParam release; // in Seconds
             */
-            var i, param;
-            for(i = compressorParams.length; i >= 0; i--){
-                param = compressorParams[i];
-                if(cfg[param] !== undefined){
-                    compressor[param].value = cfg[param];
-                }
-            }
+      var i, param
+      for (i = compressorParams.length; i >= 0; i--) {
+        param = compressorParams[i]
+        if (cfg[param] !== undefined) {
+          compressor[param].value = cfg[param]
         }
+      }
+    }
+  }
 
-    };
+  // debug levels
+  Object.defineProperty(sequencer, 'ERROR', { value: 1 })
+  Object.defineProperty(sequencer, 'WARN', { value: 2 })
+  Object.defineProperty(sequencer, 'INFO', { value: 3 })
+  Object.defineProperty(sequencer, 'LOG', { value: 4 })
 
-    // debug levels
-    Object.defineProperty(sequencer, 'ERROR', {value: 1});
-    Object.defineProperty(sequencer, 'WARN', {value: 2});
-    Object.defineProperty(sequencer, 'INFO', {value: 3});
-    Object.defineProperty(sequencer, 'LOG', {value: 4});
+  //Object.defineProperty(window.sequencer, 'timedTasks', {value: {}});
+  //Object.defineProperty(window.sequencer, 'scheduledTasks', {value: {}});
+  //Object.defineProperty(window.sequencer, 'repetitiveTasks', {value: {}});
 
-    //Object.defineProperty(window.sequencer, 'timedTasks', {value: {}});
-    //Object.defineProperty(window.sequencer, 'scheduledTasks', {value: {}});
-    //Object.defineProperty(window.sequencer, 'repetitiveTasks', {value: {}});
-
-    //Object.defineProperty(window.sequencer, 'midiInputs', {value: []});
-    //Object.defineProperty(window.sequencer, 'midiOutputs', {value: []});
-
-
-}());(function(){
+  //Object.defineProperty(window.sequencer, 'midiInputs', {value: []});
+  //Object.defineProperty(window.sequencer, 'midiOutputs', {value: []});
+})()
+(function(){
 
     'use strict';
 
@@ -2674,214 +2674,7 @@ if (typeof module !== "undefined" && module !== null) {
 */
 
 
-(function(){
-
-    'use strict';
-
-    var
-        sequencer = window.sequencer,
-        console = window.console,
-
-        // import
-        encode64, // defined in util.js
-        context, // defined in open_module.js
-
-        oggEncoder,
-        mp3Encoder;
-
-
-    function encodeRecording(recordId, type, bitrate, callback){
-        //console.log(recordId, type, bitrate);
-        if(recordId === undefined){
-            if(sequencer.debug >= sequencer.WARN){
-                console.warn('please provide a recording id');
-            }
-            if(callback){
-                callback(false);
-            }
-            return;
-        }
-
-        var recording = sequencer.storage.audio.recordings[recordId],
-            arrayBuffer = recording.arrayBuffer,
-            blob, dataUrl, base64;
-
-        if(type === 'mp3'){
-
-            var data = parseWav(new Uint8Array(arrayBuffer));
-            //console.log(data);
-            bitrate = bitrate || sequencer.bitrate_mp3_encoding; //kbps
-
-            if(mp3Encoder === undefined){
-                mp3Encoder = createMp3EncoderWorker();
-                mp3Encoder.onmessage = function(e){
-                    //console.log(e);
-                    blob = new Blob([new Uint8Array(e.data.buf)], {type: 'audio/mp3'});
-                    base64 = encode64(e.data.buf);
-                    dataUrl = 'data:audio/mp3;base64,' + base64;
-                    recording.mp3 = {
-                        blob: blob,
-                        base64: base64,
-                        dataUrl: dataUrl
-                    };
-                    callback(recording);
-                };
-            }
-
-            mp3Encoder.postMessage({
-                cmd: 'init',
-                config: {
-                    mode: 3,
-                    channels: 1,
-                    samplerate: context.sampleRate,
-                    bitrate: bitrate
-                }
-            });
-
-            mp3Encoder.postMessage({
-                cmd: 'encode',
-                buf: convertUint8ArrayToFloat32Array(data.samples)
-            });
-
-            mp3Encoder.postMessage({
-                cmd: 'finish'
-            });
-
-        }else if(type === 'ogg'){
-
-            if(sequencer.debug >= sequencer.WARN){
-                console.warn('support for ogg is not yet implemented');
-            }
-            callback(false);
-
-        }else{
-
-            if(sequencer.debug >= sequencer.WARN){
-                console.warn('unsupported type', type);
-            }
-            callback(false);
-        }
-    }
-
-
-    function cleanUp(){
-        if(mp3Encoder !== undefined){
-            mp3Encoder.terminate();
-        }
-        if(oggEncoder !== undefined){
-            oggEncoder.terminate();
-        }
-    }
-
-
-    // credits: https://nusofthq.com/blog/recording-mp3-using-only-html5-and-javascript-recordmp3-js/
-    function createMp3EncoderWorker(){
-
-        var blobURL = URL.createObjectURL(new Blob(['(',
-
-            function(){
-                /*
-                    credits:
-                        https://github.com/akrennmair/libmp3lame-js/
-                        https://github.com/kobigurk/libmp3lame-js
-                */
-                importScripts('https://raw.githubusercontent.com/kobigurk/libmp3lame-js/master/dist/libmp3lame.min.js');
-
-                var mp3codec,
-                    mp3data;
-
-                self.onmessage = function(e) {
-                    switch (e.data.cmd) {
-                        case 'init':
-                            if (!e.data.config) {
-                                e.data.config = {};
-                            }
-                            mp3codec = Lame.init();
-
-                            Lame.set_mode(mp3codec, e.data.config.mode || Lame.JOINT_STEREO);
-                            Lame.set_num_channels(mp3codec, e.data.config.channels || 2);
-                            Lame.set_num_samples(mp3codec, e.data.config.samples || -1);
-                            Lame.set_in_samplerate(mp3codec, e.data.config.samplerate || 44100);
-                            Lame.set_out_samplerate(mp3codec, e.data.config.samplerate || 44100);
-                            Lame.set_bitrate(mp3codec, e.data.config.bitrate || 128);
-
-                            Lame.init_params(mp3codec);
-                            /*
-                            console.log('Version :'+ Lame.get_version() + ' / ' +
-                                'Mode: ' + Lame.get_mode(mp3codec) + ' / ' +
-                                'Samples: ' + Lame.get_num_samples(mp3codec)  + ' / '  +
-                                'Channels: ' + Lame.get_num_channels(mp3codec)  + ' / ' +
-                                'Input Samplate: ' + Lame.get_in_samplerate(mp3codec) + ' / ' +
-                                'Output Samplate: ' + Lame.get_in_samplerate(mp3codec) + ' / ' +
-                                'Bitlate :' + Lame.get_bitrate(mp3codec) + ' / ' +
-                                'VBR :' + Lame.get_VBR(mp3codec));
-                            */
-                            break;
-                        case 'encode':
-                            //console.log('encode');
-                            mp3data = Lame.encode_buffer_ieee_float(mp3codec, e.data.buf, e.data.buf);
-                            this.postMessage({cmd: 'data', buf: mp3data.data});
-                            break;
-                        case 'finish':
-                            //console.log('finish');
-                            mp3data = Lame.encode_flush(mp3codec);
-                            this.postMessage({cmd: 'end', buf: mp3data.data});
-                            Lame.close(mp3codec);
-                            mp3codec = null;
-                            break;
-                    }
-                };
-            }.toString(),
-
-        ')()' ], {type: 'application/javascript'}));
-
-        return new Worker(blobURL);
-    }
-
-
-    function parseWav(wav) {
-        function readInt(i, bytes) {
-            var ret = 0,
-                shft = 0;
-
-            while (bytes) {
-                ret += wav[i] << shft;
-                shft += 8;
-                i++;
-                bytes--;
-            }
-            return ret;
-        }
-        if (readInt(20, 2) != 1) throw 'Invalid compression code, not PCM';
-        if (readInt(22, 2) != 1) throw 'Invalid number of channels, not 1';
-        return {
-            sampleRate: readInt(24, 4),
-            bitsPerSample: readInt(34, 2),
-            samples: wav.subarray(44)
-        };
-    }
-
-
-    function convertUint8ArrayToFloat32Array(u8a){
-        var f32Buffer = new Float32Array(u8a.length);
-        for (var i = 0; i < u8a.length; i++) {
-            var value = u8a[i<<1] + (u8a[(i<<1)+1]<<8);
-            if (value >= 0x8000) value |= ~0x7FFF;
-            f32Buffer[i] = value / 0x8000;
-        }
-        return f32Buffer;
-    }
-
-
-    sequencer.protectedScope.encodeRecording = encodeRecording;
-    sequencer.protectedScope.cleanupEncoder = cleanUp;
-
-    sequencer.protectedScope.addInitMethod(function(){
-        encode64 = sequencer.util.encode64;
-        context = sequencer.protectedScope.context;
-    });
-
-}());/*
+/*
     controls the playback of the audio events in a track
 */
 (function(){
@@ -2993,195 +2786,178 @@ if (typeof module !== "undefined" && module !== null) {
         createAudioRecorder = sequencer.protectedScope.createAudioRecorder;
     });
 
-}());
-// Sample.source -> gain (midiEvent.velocity) ->
+}());// Sample.source -> gain (midiEvent.velocity) ->
 // Track.input -> [FX input ~~ FX output] -> Track.panner (Track.setPanning())-> Track.output (Track.setVolume())
 // Song.gain (Song.setVolume()) ->
 // Sequencer.gain (sequencer.setMasterVolume()) -> Sequencer.compressor -> context.destiny
 
-(function(){
+;(function() {
+  'use strict'
 
-    'use strict';
+  var // satisfy jslint
+    sequencer = window.sequencer,
+    console = window.console,
+    id = 0,
+    context,
+    createClass, // defined in util.js
+    getSample, // defined in instrument_manager.js
+    Reverb,
+    Panner,
+    Panner2,
+    Delay,
+    BiQuadFilter,
+    Compressor
 
-    var
-        // satisfy jslint
-        sequencer = window.sequencer,
-        console = window.console,
+  function Effect(config) {
+    this.id = 'FX' + id++ + '' + new Date().getTime()
+    this.type = config.type
+    this.buffer = config.buffer
+    this.config = config
 
-        id = 0,
-        context,
+    this.bypass = false
+    this.amount = 0 //0.5;
 
-        createClass, // defined in util.js
-        getSample, // defined in instrument_manager.js
+    this.output = context.createGain()
+    this.wetGain = context.createGain()
+    this.dryGain = context.createGain()
+    this.output.gain.value = 1
+    this.wetGain.gain.value = this.amount
+    this.dryGain.gain.value = 1 - this.amount
+  }
 
-        Reverb,
-        Panner,
-        Panner2,
-        Delay,
-        BiQuadFilter,
-        Compressor;
+  Effect.prototype.setInput = function(input) {
+    // input.connect(this.node);
+    // return;
 
+    // dry channel
+    input.connect(this.dryGain)
+    this.dryGain.connect(this.output)
 
-    function Effect(config){
-        this.id = 'FX' + id++ + '' + new Date().getTime();
-        this.type = config.type;
-        this.buffer = config.buffer;
-        this.config = config;
+    // wet channel
+    input.connect(this.node)
+    this.node.connect(this.wetGain)
+    this.wetGain.connect(this.output)
+  }
 
-        this.bypass = false;
-        this.amount = 0;//0.5;
-
-        this.output = context.createGainNode();
-        this.wetGain = context.createGainNode();
-        this.dryGain = context.createGainNode();
-        this.output.gain.value = 1;
-        this.wetGain.gain.value = this.amount;
-        this.dryGain.gain.value = 1 - this.amount;
-    }
-
-
-    Effect.prototype.setInput = function(input){
-        // input.connect(this.node);
-        // return;
-
-        // dry channel
-        input.connect(this.dryGain);
-        this.dryGain.connect(this.output);
-
-        // wet channel
-        input.connect(this.node);
-        this.node.connect(this.wetGain);
-        this.wetGain.connect(this.output);
-    };
-
-/*
+  /*
     Effect.prototype.setOutput = function(output){
         this.output.disconnect(0);
         this.output.connect(output);
     };
 */
 
-    Effect.prototype.setAmount = function(value){
-        /*
+  Effect.prototype.setAmount = function(value) {
+    /*
         this.amount = value < 0 ? 0 : value > 1 ? 1 : value;
         var gain1 = Math.cos(this.amount * 0.5 * Math.PI),
             gain2 = Math.cos((1.0 - this.amount) * 0.5 * Math.PI);
         this.gainNode.gain.value = gain2 * this.ratio;
         */
 
-        this.amount = value < 0 ? 0 : value > 1 ? 1 : value;
-        this.wetGain.gain.value = this.amount;
-        this.dryGain.gain.value = 1 - this.amount;
-        //console.log('wet',this.wetGain.gain.value,'dry',this.dryGain.gain.value);
-    };
+    this.amount = value < 0 ? 0 : value > 1 ? 1 : value
+    this.wetGain.gain.value = this.amount
+    this.dryGain.gain.value = 1 - this.amount
+    //console.log('wet',this.wetGain.gain.value,'dry',this.dryGain.gain.value);
+  }
 
+  Effect.prototype.copy = function() {
+    switch (this.type) {
+      case 'reverb':
+        return new Reverb(this.config)
+      case 'panner':
+        return new Panner(this.config)
+      case 'panner2':
+        return new Panner2(this.config)
+      case 'delay':
+        return new Delay(this.config)
+      case 'compressor':
+        return new Compressor(this.config)
+    }
+  }
 
-    Effect.prototype.copy = function(){
-        switch(this.type){
-            case 'reverb':
-                return new Reverb(this.config);
-            case 'panner':
-                return new Panner(this.config);
-            case 'panner2':
-                return new Panner2(this.config);
-            case 'delay':
-                return new Delay(this.config);
-            case 'compressor':
-                return new Compressor(this.config);
-        }
-    };
+  sequencer.createReverb = function(id) {
+    var buffer = getSample(id)
+    if (buffer === false) {
+      console.warn('no reverb with id', id, 'loaded')
+      return false
+    }
+    var config = {
+      type: 'reverb',
+      buffer: buffer
+    }
+    return new Reverb(config)
+  }
 
+  sequencer.createPanner = function(config) {
+    config = config || {}
+    config.type = 'panner'
+    return new Panner(config)
+  }
 
-    sequencer.createReverb = function(id){
-        var buffer = getSample(id);
-        if(buffer === false){
-            console.warn('no reverb with id', id, 'loaded');
-            return false;
-        }
-        var config = {
-            type: 'reverb',
-            buffer: buffer
-        };
-        return new Reverb(config);
-    };
+  sequencer.createPanner2 = function(config) {
+    config = config || {}
+    config.type = 'panner2'
+    return new Panner2(config)
+  }
 
+  sequencer.createDelay = function(config) {
+    config = config || {}
+    config.type = 'delay'
+    return new Delay(config)
+  }
 
-    sequencer.createPanner = function(config){
-        config = config || {};
-        config.type = 'panner';
-        return new Panner(config);
-    };
+  sequencer.createCompressor = function(config) {
+    config = config || {}
+    config.type = 'compressor'
+    return new Compressor(config)
+  }
 
+  sequencer.createBiQuadFilter = function(config) {
+    config = config || {}
+    config.type = 'biquadfilter'
+    return new BiQuadFilter(config)
+  }
 
-    sequencer.createPanner2 = function(config){
-        config = config || {};
-        config.type = 'panner2';
-        return new Panner2(config);
-    };
+  sequencer.protectedScope.addInitMethod(function() {
+    context = sequencer.protectedScope.context
+    createClass = sequencer.protectedScope.createClass
+    getSample = sequencer.getSample
 
+    Reverb = createClass(Effect, function(config) {
+      this.node = context.createConvolver()
+      this.node.buffer = config.buffer
+      //console.log(this.node.buffer);
+    })
 
-    sequencer.createDelay = function(config){
-        config = config || {};
-        config.type = 'delay';
-        return new Delay(config);
-    };
+    Panner = createClass(Effect, function(config) {
+      this.node = context.createPanner()
+      this.node.panningModel = 'equalpower'
+      this.node.setPosition(0, 0, 0)
+    })
 
+    Panner2 = createClass(Effect, function(config) {
+      this.node = context.createPanner()
+      this.node.panningModel = 'HRTF'
+      this.node.setPosition(0, 0, 0)
+    })
 
-    sequencer.createCompressor = function(config){
-        config = config || {};
-        config.type = 'compressor';
-        return new Compressor(config);
-    };
+    Delay = createClass(Effect, function(config) {
+      this.node = context.createDelay()
+      this.node.delayTime.value = 0.3
+    })
 
+    Compressor = createClass(Effect, function(config) {
+      this.node = context.createDynamicsCompressor()
+    })
 
-    sequencer.createBiQuadFilter = function(config){
-        config = config || {};
-        config.type = 'biquadfilter';
-        return new BiQuadFilter(config);
-    };
+    BiQuadFilter = createClass(Effect, function(config) {
+      this.node = context.createBiquadFilter()
+      this.node.type = 0
+      this.node.Q.value = 4
+      this.node.frequency.value = 1600
+    })
 
-
-    sequencer.protectedScope.addInitMethod(function(){
-        context = sequencer.protectedScope.context;
-        createClass = sequencer.protectedScope.createClass;
-        getSample = sequencer.getSample;
-
-        Reverb = createClass(Effect, function(config){
-            this.node = context.createConvolver();
-            this.node.buffer = config.buffer;
-            //console.log(this.node.buffer);
-        });
-
-        Panner = createClass(Effect, function(config){
-            this.node = context.createPanner();
-            this.node.panningModel = 'equalpower';
-            this.node.setPosition(0, 0, 0);
-        });
-
-        Panner2 = createClass(Effect, function(config){
-            this.node = context.createPanner();
-            this.node.panningModel = 'HRTF';
-            this.node.setPosition(0, 0, 0);
-        });
-
-        Delay = createClass(Effect, function(config){
-            this.node = context.createDelay();
-            this.node.delayTime.value = 0.3;
-        });
-
-        Compressor = createClass(Effect, function(config){
-            this.node = context.createDynamicsCompressor();
-        });
-
-
-        BiQuadFilter = createClass(Effect, function(config){
-            this.node = context.createBiquadFilter();
-            this.node.type = 0;
-            this.node.Q.value = 4;
-            this.node.frequency.value = 1600;
-        });
-
-        /*
+    /*
         Panner.prototype.setPosition = function(x, y, z){
             var multiplier = 5;
             console.log(x * multiplier);
@@ -3189,32 +2965,31 @@ if (typeof module !== "undefined" && module !== null) {
         };
         */
 
-        Panner.prototype.setPosition = function(value){
-            var x = value,
-                z = 1 - Math.abs(x);
-            this.node.setPosition(x, 0, z);
-            //console.log(x,z);
-        };
+    Panner.prototype.setPosition = function(value) {
+      var x = value,
+        z = 1 - Math.abs(x)
+      this.node.setPosition(x, 0, z)
+      //console.log(x,z);
+    }
 
-        Panner2.prototype.setPosition = function(value){
-            var xDeg = parseInt(value),
-                zDeg = xDeg + 90,
-                x, z;
-            if (zDeg > 90) {
-                zDeg = 180 - zDeg;
-            }
-            x = Math.sin(xDeg * (Math.PI / 180));
-            z = Math.sin(zDeg * (Math.PI / 180));
-            this.node.setPosition(x, 0, z);
-        };
+    Panner2.prototype.setPosition = function(value) {
+      var xDeg = parseInt(value),
+        zDeg = xDeg + 90,
+        x,
+        z
+      if (zDeg > 90) {
+        zDeg = 180 - zDeg
+      }
+      x = Math.sin(xDeg * (Math.PI / 180))
+      z = Math.sin(zDeg * (Math.PI / 180))
+      this.node.setPosition(x, 0, z)
+    }
 
-        Delay.prototype.setTime = function(value){
-            this.node.delayTime.value = value;
-        };
-
-    });
-}());
-
+    Delay.prototype.setTime = function(value) {
+      this.node.delayTime.value = value
+    }
+  })
+})()
 
 /*
 
@@ -3240,9 +3015,6 @@ if (typeof module !== "undefined" && module !== null) {
 
 
 */
-
-
-
 /*
 
     operators:
@@ -12834,393 +12606,560 @@ if (typeof module !== "undefined" && module !== null) {
         sequencer = window.sequencer,
         console = window.console,
 
-        //import
-        context, // defined in open_module.js
-        timedTasks, // defined in open_module.js
-        legacy, // defined in open_module.js
-        typeString, // defined in util.js
-        getSampleId, // defined in open_module.js
-        createPanner, // defined in effects.js
-        getEqualPowerCurve, // defined in util.js
+        copyObject, // defined in util.js
 
-        //private
-        stopSample,
-        fadeOut,
+        floor = Math.floor,
+        round = Math.round,
 
-        SampleSynth,
-        SampleRelease,
-        SampleSustainRelease,
-        SampleReleasePanning,
-        SampleSustainReleasePanning,
+    	noteFractions =
+    	{
+	        '1': 1 * 4, // whole note
+	        '1.': 1.5 * 4,
+	        '1..': 1.75 * 4,
+	        '1...': 1.875 * 4,
+	        '1T': 2/3 * 4,
+
+	        '2': 1 * 2, // half note
+	        '2.': 1.5 * 2,
+	        '2..': 1.75 * 2,
+	        '2...': 1.875 * 2,
+	        '2T': 2/3 * 2,
+
+	        '4': 1 * 1, // quarter note (beat)
+	        '4.': 1.5 * 1,
+	        '4..': 1.75 * 1,
+	        '4...': 1.875 * 1,
+	        '4T': 2/3 * 1,
+
+	        '8': 1 * 1/2, // eighth note
+	        '8.': 1.5 * 1/2,
+	        '8..': 1.75 * 1/2,
+	        '8...': 1.875 * 1/2,
+	        '8T':  2/3 * 1/2,
+
+	        '16': 1 * 1/4, // sixteenth note
+	        '16.': 1.5 * 1/4,
+	        '16..': 1.75 * 1/4,
+	        '16...': 1.875 * 1/4,
+	        '16T': 2/3 * 1/4,
+
+	        '32': 1 * 1/8,
+	        '32.': 1.5 * 1/8,
+	        '32..': 1.75 * 1/8,
+	        '32...': 1.875 * 1/8,
+	        '32T': 2/3 * 1/8,
+
+	        '64': 1 * 1/16,
+	        '64.': 1.5 * 1/16,
+	        '64..': 1.75 * 1/16,
+	        '64...': 1.875 * 1/16,
+	        '64T': 2/3 * 1/16,
+
+	        '128': 1 * 1/32,
+	        '128.': 1.5 * 1/32,
+	        '128..': 1.75 * 1/32,
+	        '128...': 1.875 * 1/32,
+	        '128T': 2/3 * 1/32
+	    };
 
 
-    Sample = function(config){
-        this.id = getSampleId();
-        this.output = context.createGainNode();
-        this.output.connect(config.track.input);
-        this.buffer = config.buffer;
-        if(this.buffer){
-            this.duration = this.buffer.duration;
+
+
+    function quantize(events, value, ppq, history){
+        var track;
+
+        value = '' + value;
+        value = value.toUpperCase();
+        ppq = ppq || sequencer.defaultPPQ;
+        //console.log('quantize', value);
+        if(value === 0){// pass by
+            return {};
         }
-        this.noteNumber = config.noteNumber;
-        this.stopCallback = function(){};
-        this.track = config.track;
-        //console.log(this.buffer, this.noteNumber)
-    };
+        var i, event, ticks, quantized, diff, quantizeTicks,
+           quantizeHistory = history || {};
 
-
-    stopSample = function(sample, time){
-        sample.source.onended = function(){
-            sample.stopCallback(sample);
-        };
-        time = time || 0;
-        try{
-            sample.source.stop(time);
-        }catch(e){
-            console.log(e);
-        }
-    };
-
-
-    fadeOut = function(sample){
-        var now = context.currentTime,
-            values,
-            i, maxi;
-
-        //console.log(sample.releaseEnvelope);
-        switch(sample.releaseEnvelope){
-
-            case 'linear':
-                sample.output.gain.linearRampToValueAtTime(sample.volume, now);
-                sample.output.gain.linearRampToValueAtTime(0, now + sample.releaseDuration);
-                break;
-
-            case 'equal power':
-                values = getEqualPowerCurve(100, 'fadeOut', sample.volume);
-                sample.output.gain.setValueCurveAtTime(values, now, sample.releaseDuration);
-                break;
-
-            case 'array':
-                maxi = sample.releaseEnvelopeArray.length;
-                values = new Float32Array(maxi);
-                for(i = 0; i < maxi; i++){
-                    values[i] = sample.releaseEnvelopeArray[i] * sample.volume;
-                }
-                sample.output.gain.setValueCurveAtTime(values, now, sample.releaseDuration);
-                break;
-        }
-    };
-
-
-    Sample.prototype.addData = function(obj){
-        this.sourceId = obj.sourceId;
-        this.noteName = obj.noteName;
-        this.midiNote = obj.midiNote;
-    };
-
-    Sample.prototype.createSource = function(){
-        // overrule to do or add other stuff
-        this.source = context.createBufferSource();
-        this.source.buffer = this.buffer;
-    };
-
-    Sample.prototype.route = function(){
-        // overrule to do or add other stuff
-        this.source.connect(this.output);
-    };
-
-
-    // called on a NOTE ON event
-    Sample.prototype.start = function(event){
-        //console.log('NOTE ON', time, velocity);
-        if(this.source !== undefined){
-            console.error('this should never happen');
-            return;
+        if(quantizeHistory.events === undefined){
+            quantizeHistory.events = {};
         }
 
-        this.volume = event.velocity/127;
-        this.output.gain.value = this.volume;
-
-        this.createSource();
-        this.phase = 'decay'; // -> naming of phases is not completely correct, we skip attack
-        this.route();
-
-        if(legacy === true){
-            this.source.start = this.source.noteOn;
-            this.source.stop = this.source.noteOff;
+        if(quantizeHistory.tracks === undefined){
+            quantizeHistory.tracks = {};
         }
 
-        try{
-            // if(event.offset !== undefined){
-            //     console.log(event.offset);
-            // }
-            this.source.start(event.time, event.offset || 0, event.duration || this.duration);
-            //this.source.start(event.time);
-            //console.log('start', event.time, event.offset, event.duration, sequencer.getTime());
-            //console.log('start', time, sequencer.getTime());
-        }catch(e){
-            console.warn(e);
+        //console.log(events, value, ppq, history);
+
+        if(value.indexOf('TICKS') !== -1){
+            quantizeTicks = parseInt(value.replace(/TICKS/,''), 10);
+        }else{
+            quantizeTicks = noteFractions[value] * ppq;
         }
-    };
 
+        //console.log('quantize', quantizeTicks);
 
-    // called on a NOTE OFF event
-    Sample.prototype.stop = function(seconds, cb){
-        //console.log('NOTE OFF', cb);
-        //console.log('NOTE OFF', this.source);
-        //console.log('NOTE OFF', this.release);
-        if(this.source === undefined){
+        if(quantizeTicks === undefined){
             if(sequencer.debug){
-                console.log('Sample.stop() source is undefined');
+                console.warn('invalid quantize value');
             }
             return;
         }
 
-        // this happens when midi events are sent live from a midi device
-        if(seconds === 0 || seconds === undefined){
-            //console.log('seconds is undefined!');
-            seconds = sequencer.getTime();
-        }
-        this.stopCallback = cb || function(){};
+        for(i = events.length - 1; i >= 0; i--){
+            event = events[i];
 
-        if(this.release){
-            this.source.loop = false;
-            this.startReleasePhase = seconds;
-            this.stopTime = seconds + this.releaseDuration;
-            //console.log(this.stopTime, seconds, this.releaseDuration);
-        }else{
-            stopSample(this, seconds);
-        }
-    };
-
-
-    Sample.prototype.unschedule = function(when, cb){
-        var now = context.currentTime,
-            sample = this,
-            fadeOut = when === null ? 100 : when;//milliseconds
-
-        this.source.onended = undefined;
-        this.output.gain.cancelScheduledValues(now);
-        //console.log(this.volume, now);
-        //this.output.gain.linearRampToValueAtTime(this.volume, now);
-
-        try{
-            this.output.gain.linearRampToValueAtTime(0, now + fadeOut/1000); // fade out in seconds
-
-            timedTasks['unschedule_' + this.id] = {
-                time: now + fadeOut/1000,
-                execute: function(){
-                    if(!sample){
-                        console.log('sample is gone');
-                        return;
-                    }
-                    if(sample.panner){
-                        sample.panner.node.disconnect(0);
-                    }
-                    if(sample.source !== undefined){
-                        sample.source.disconnect(0);
-                        sample.source = undefined;
-                    }
-                    if(cb){
-                        cb(sample);
-                    }
-                }
+            quantizeHistory.events[event.id] = {
+                event: event,
+                ticks: event.ticks
             };
-        }catch(e){
-            // firefox gives sometimes an error "SyntaxError: An invalid or illegal string was specified"
-            console.log(e);
-        }
 
-    };
+            if(event.type !== 128){
+                ticks = event.ticks;
+                quantized = round(ticks/quantizeTicks) * quantizeTicks;
+                //console.log(ticks, quantized, '[', ppq, ']');
+                diff = quantized - ticks;
+                event.ticks = quantized;
+                event.state = 'changed';
+                event.part.needsUpdate = true;
+                event.track.needsUpdate = true;
 
+                // add quantize history per track as well
+                track = event.track;
+                if(quantizeHistory.tracks[track.id] === undefined){
+                    quantizeHistory.tracks[track.id] = {
+                        track: track,
+                        quantizedEvents: []
+                    };
+                }
+                quantizeHistory.tracks[track.id].quantizedEvents.push(event);
 
-    // called every frame
-    Sample.prototype.update = function(value){
-        var doLog = this.track.name === 'Sonata # 3' && this.track.song.bar >= 6 && this.track.song.bar <= 10;
-        //var doLog = true;
-        //console.log('update', this.phase);
-        if(this.autopan){
-            this.panner.setPosition(value);
-        }
-
-        if(this.startReleasePhase !== undefined && context.currentTime >= this.startReleasePhase && this.phase === 'decay'){
-            if(doLog === true){
-                console.log(this.phase, '-> release', this.releaseDuration);
+                // quantize the note off event
+                if(event.midiNote !== undefined){
+                    event.midiNote.noteOff.ticks += diff;
+                    event.midiNote.noteOff.state = 'changed';
+                    event.midiNote.state = 'changed';
+                    quantizeHistory.tracks[track.id].quantizedEvents.push(event.midiNote.noteOff);
+                }
             }
-            this.phase = 'release';
-            fadeOut(this);
-        }else if(this.stopTime !== undefined && context.currentTime >= this.stopTime && this.phase === 'release'){
-            if(doLog === true){
-                console.log(this.phase, '-> stopped', this.stopTime, context.currentTime);
-            }
-            this.phase = 'stopped';
-            stopSample(this);
         }
-    };
+
+        return quantizeHistory;//copyObject(quantizeHistory);
+    }
 
 
-    sequencer.createSample = function(config){
-        var debug = false;
-        //return new Sample(config);
-        //console.log(config.release_duration);
-        if(debug)console.log(config);
+    function fixedLength(events, value, ppq, history){
+        var fixedLengthHistory = history || {};
 
-        if(config.oscillator){
-            if(debug)console.log('synth');
-            return new SampleSynth(config);
-
-        }else if(config.sustain && config.release && config.panning){
-            if(debug)console.log('sustain, release, panning');
-            return new SampleSustainReleasePanning(config);
-
-        }else if(config.release && config.panning){
-            if(debug)console.log('release, panning');
-            return new SampleReleasePanning(config);
-
-        }else if(config.release && config.sustain){
-            if(debug)console.log('release, sustain');
-            return new SampleSustainRelease(config);
-
-        }else if(config.release){
-            if(debug)console.log('release');
-            return new SampleRelease(config);
-
-        }else{
-            if(debug)console.log('simple');
-            return new Sample(config);
-        }
-    };
+    }
 
 
     sequencer.protectedScope.addInitMethod(function(){
-        var createClass = sequencer.protectedScope.createClass;
+        copyObject = sequencer.protectedScope.copyObject;
+    });
 
-        context = sequencer.protectedScope.context;
-        timedTasks = sequencer.protectedScope.timedTasks;
-        getEqualPowerCurve = sequencer.util.getEqualPowerCurve;
-        legacy = sequencer.legacy;
-        getSampleId = sequencer.protectedScope.getSampleId;
-        typeString = sequencer.protectedScope.typeString;
-        createPanner = sequencer.createPanner;
+    sequencer.quantize = quantize;
+    sequencer.fixedLength = fixedLength;
+
+}());
 
 
-        SampleRelease = createClass(Sample, function(config){
-            this.release = true;
+;(function() {
+  'use strict'
 
-            this.releaseDuration = config.release_duration/1000;
-            this.releaseEnvelope = config.release_envelope;
-            //console.log(this.releaseDuration, this.releaseEnvelope);
-        });
+  var // satisfy jslint
+    sequencer = window.sequencer,
+    console = window.console,
+    //import
+    context, // defined in open_module.js
+    timedTasks, // defined in open_module.js
+    legacy, // defined in open_module.js
+    typeString, // defined in util.js
+    getSampleId, // defined in open_module.js
+    createPanner, // defined in effects.js
+    getEqualPowerCurve, // defined in util.js
+    //private
+    stopSample,
+    fadeOut,
+    SampleSynth,
+    SampleRelease,
+    SampleSustainRelease,
+    SampleReleasePanning,
+    SampleSustainReleasePanning,
+    Sample = function(config) {
+      this.id = getSampleId()
+      this.output = context.createGain()
+      this.output.connect(config.track.input)
+      this.buffer = config.buffer
+      if (this.buffer) {
+        this.duration = this.buffer.duration
+      }
+      this.noteNumber = config.noteNumber
+      this.stopCallback = function() {}
+      this.track = config.track
+      //console.log(this.buffer, this.noteNumber)
+    }
 
+  stopSample = function(sample, time) {
+    sample.source.onended = function() {
+      sample.stopCallback(sample)
+    }
+    time = time || 0
+    try {
+      sample.source.stop(time)
+    } catch (e) {
+      console.log(e)
+    }
+  }
 
-        SampleSustainRelease = createClass(Sample, function(config){
-            this.release = true;
+  fadeOut = function(sample) {
+    var now = context.currentTime,
+      values,
+      i,
+      maxi
 
-            this.sustainStart = config.sustain_start/1000;
-            this.sustainEnd = config.sustain_end/1000;
-            this.releaseDuration = config.release_duration/1000;
-            this.releaseEnvelope = config.release_envelope;
-            if(this.releaseEnvelope === undefined){
-                this.releaseEnvelope = 'equal power';
-            }else if(typeString(this.releaseEnvelope) === 'array'){
-                this.releaseEnvelopeArray = config.release_envelope_array;
-                this.releaseEnvelope = 'array';
-            }
-        });
+    //console.log(sample.releaseEnvelope);
+    switch (sample.releaseEnvelope) {
+      case 'linear':
+        sample.output.gain.linearRampToValueAtTime(sample.volume, now)
+        sample.output.gain.linearRampToValueAtTime(
+          0,
+          now + sample.releaseDuration
+        )
+        break
 
-        SampleSustainRelease.prototype.route = function(){
-            this.source.loop = true;
-            this.source.loopStart = this.sustainStart;
-            this.source.loopEnd = this.sustainEnd;
-            this.source.connect(this.output);
-            //console.log(this.sustainStart, this.sustainEnd);
-        };
+      case 'equal power':
+        values = getEqualPowerCurve(100, 'fadeOut', sample.volume)
+        sample.output.gain.setValueCurveAtTime(
+          values,
+          now,
+          sample.releaseDuration
+        )
+        break
 
+      case 'array':
+        maxi = sample.releaseEnvelopeArray.length
+        values = new Float32Array(maxi)
+        for (i = 0; i < maxi; i++) {
+          values[i] = sample.releaseEnvelopeArray[i] * sample.volume
+        }
+        sample.output.gain.setValueCurveAtTime(
+          values,
+          now,
+          sample.releaseDuration
+        )
+        break
+    }
+  }
 
-        SampleReleasePanning = createClass(Sample, function(config){
-            this.release = true;
+  Sample.prototype.addData = function(obj) {
+    this.sourceId = obj.sourceId
+    this.noteName = obj.noteName
+    this.midiNote = obj.midiNote
+  }
 
-            this.releaseDuration = config.release_duration/1000;
-            this.releaseEnvelope = config.release_envelope;
-            if(this.releaseEnvelope === undefined){
-                this.releaseEnvelope = 'equal power';
-            }else if(typeString(this.releaseEnvelope) === 'array'){
-                this.releaseEnvelopeArray = config.release_envelope_array;
-                this.releaseEnvelope = 'array';
-            }
-            this.panPosition = config.panPosition;
-        });
+  Sample.prototype.createSource = function() {
+    // overrule to do or add other stuff
+    this.source = context.createBufferSource()
+    this.source.buffer = this.buffer
+  }
 
+  Sample.prototype.route = function() {
+    // overrule to do or add other stuff
+    this.source.connect(this.output)
+  }
 
-        SampleReleasePanning.prototype.route = function(){
-            //console.log(this.panning);
-            this.panner = createPanner();
-            this.panner.setPosition(this.panPosition || 0);
-            this.source.connect(this.panner.node);
-            this.panner.node.connect(this.output);
-        };
+  // called on a NOTE ON event
+  Sample.prototype.start = function(event) {
+    //console.log('NOTE ON', time, velocity);
+    if (this.source !== undefined) {
+      console.error('this should never happen')
+      return
+    }
 
-        SampleSustainReleasePanning = createClass(Sample, function(config){
-            this.release = true;
+    this.volume = event.velocity / 127
+    this.output.gain.value = this.volume
 
-            this.sustainStart = config.sustain_start/1000;
-            this.sustainEnd = config.sustain_end/1000;
-            this.releaseDuration = config.release_duration/1000;
-            this.releaseEnvelope = config.release_envelope;
-            if(this.releaseEnvelope === undefined){
-                this.releaseEnvelope = 'equal power';
-            }else if(typeString(this.releaseEnvelope) === 'array'){
-                this.releaseEnvelopeArray = config.release_envelope_array;
-                this.releaseEnvelope = 'array';
-            }
-            this.panPosition = config.panPosition;
-        });
+    this.createSource()
+    this.phase = 'decay' // -> naming of phases is not completely correct, we skip attack
+    this.route()
 
+    if (legacy === true) {
+      this.source.start = this.source.noteOn
+      this.source.stop = this.source.noteOff
+    }
 
-        SampleSustainReleasePanning.prototype.route = function(){
-            this.source.loop = true;
-            this.source.loopStart = this.sustainStart;
-            this.source.loopEnd = this.sustainEnd;
+    try {
+      // if(event.offset !== undefined){
+      //     console.log(event.offset);
+      // }
+      this.source.start(
+        event.time,
+        event.offset || 0,
+        event.duration || this.duration
+      )
+      //this.source.start(event.time);
+      //console.log('start', event.time, event.offset, event.duration, sequencer.getTime());
+      //console.log('start', time, sequencer.getTime());
+    } catch (e) {
+      console.warn(e)
+    }
+  }
 
-            this.panner = createPanner();
-            this.panner.setPosition(this.panPosition || 0);
-            this.source.connect(this.panner.node);
-            this.panner.node.connect(this.output);
-        };
+  // called on a NOTE OFF event
+  Sample.prototype.stop = function(seconds, cb) {
+    //console.log('NOTE OFF', cb);
+    //console.log('NOTE OFF', this.source);
+    //console.log('NOTE OFF', this.release);
+    if (this.source === undefined) {
+      if (sequencer.debug) {
+        console.log('Sample.stop() source is undefined')
+      }
+      return
+    }
 
+    // this happens when midi events are sent live from a midi device
+    if (seconds === 0 || seconds === undefined) {
+      //console.log('seconds is undefined!');
+      seconds = sequencer.getTime()
+    }
+    this.stopCallback = cb || function() {}
 
-        SampleSynth = createClass(Sample, function(config){
-            this.release = true;
-            this.panPosition = 0;
-            this.autopan = config.autopan || false;
-            this.frequency = config.event.frequency;
-            this.waveForm = config.wave_form || 0;
-            this.releaseDuration = config.release_duration/1000 || 1.5;
-            this.releaseEnvelope = config.release_envelope || 'equal power';
-            //console.log(config);
-        });
+    if (this.release) {
+      this.source.loop = false
+      this.startReleasePhase = seconds
+      this.stopTime = seconds + this.releaseDuration
+      //console.log(this.stopTime, seconds, this.releaseDuration);
+    } else {
+      stopSample(this, seconds)
+    }
+  }
 
-        SampleSynth.prototype.createSource = function(){
-            this.source = context.createOscillator();
-            this.source.type = this.waveForm;
-            this.source.frequency.value = this.frequency;
-        };
+  Sample.prototype.unschedule = function(when, cb) {
+    var now = context.currentTime,
+      sample = this,
+      fadeOut = when === null ? 100 : when //milliseconds
 
-        SampleSynth.prototype.route = function(){
-            //create some headroom for multi-timbrality
-            this.volume *= 0.3;
-            this.output.gain.value = this.volume;
+    this.source.onended = undefined
+    this.output.gain.cancelScheduledValues(now)
+    //console.log(this.volume, now);
+    //this.output.gain.linearRampToValueAtTime(this.volume, now);
 
-            if(this.autopan){
-                this.panner = createPanner();
-                this.panner.setPosition(0);
-                this.source.connect(this.panner.node);
-                this.panner.node.connect(this.output);
-            }else{
-                this.source.connect(this.output);
-            }
-        };
-/*
+    try {
+      this.output.gain.linearRampToValueAtTime(0, now + fadeOut / 1000) // fade out in seconds
+
+      timedTasks['unschedule_' + this.id] = {
+        time: now + fadeOut / 1000,
+        execute: function() {
+          if (!sample) {
+            console.log('sample is gone')
+            return
+          }
+          if (sample.panner) {
+            sample.panner.node.disconnect(0)
+          }
+          if (sample.source !== undefined) {
+            sample.source.disconnect(0)
+            sample.source = undefined
+          }
+          if (cb) {
+            cb(sample)
+          }
+        }
+      }
+    } catch (e) {
+      // firefox gives sometimes an error "SyntaxError: An invalid or illegal string was specified"
+      console.log(e)
+    }
+  }
+
+  // called every frame
+  Sample.prototype.update = function(value) {
+    var doLog =
+      this.track.name === 'Sonata # 3' &&
+      this.track.song.bar >= 6 &&
+      this.track.song.bar <= 10
+    //var doLog = true;
+    //console.log('update', this.phase);
+    if (this.autopan) {
+      this.panner.setPosition(value)
+    }
+
+    if (
+      this.startReleasePhase !== undefined &&
+      context.currentTime >= this.startReleasePhase &&
+      this.phase === 'decay'
+    ) {
+      if (doLog === true) {
+        console.log(this.phase, '-> release', this.releaseDuration)
+      }
+      this.phase = 'release'
+      fadeOut(this)
+    } else if (
+      this.stopTime !== undefined &&
+      context.currentTime >= this.stopTime &&
+      this.phase === 'release'
+    ) {
+      if (doLog === true) {
+        console.log(
+          this.phase,
+          '-> stopped',
+          this.stopTime,
+          context.currentTime
+        )
+      }
+      this.phase = 'stopped'
+      stopSample(this)
+    }
+  }
+
+  sequencer.createSample = function(config) {
+    var debug = false
+    //return new Sample(config);
+    //console.log(config.release_duration);
+    if (debug) console.log(config)
+
+    if (config.oscillator) {
+      if (debug) console.log('synth')
+      return new SampleSynth(config)
+    } else if (config.sustain && config.release && config.panning) {
+      if (debug) console.log('sustain, release, panning')
+      return new SampleSustainReleasePanning(config)
+    } else if (config.release && config.panning) {
+      if (debug) console.log('release, panning')
+      return new SampleReleasePanning(config)
+    } else if (config.release && config.sustain) {
+      if (debug) console.log('release, sustain')
+      return new SampleSustainRelease(config)
+    } else if (config.release) {
+      if (debug) console.log('release')
+      return new SampleRelease(config)
+    } else {
+      if (debug) console.log('simple')
+      return new Sample(config)
+    }
+  }
+
+  sequencer.protectedScope.addInitMethod(function() {
+    var createClass = sequencer.protectedScope.createClass
+
+    context = sequencer.protectedScope.context
+    timedTasks = sequencer.protectedScope.timedTasks
+    getEqualPowerCurve = sequencer.util.getEqualPowerCurve
+    legacy = sequencer.legacy
+    getSampleId = sequencer.protectedScope.getSampleId
+    typeString = sequencer.protectedScope.typeString
+    createPanner = sequencer.createPanner
+
+    SampleRelease = createClass(Sample, function(config) {
+      this.release = true
+
+      this.releaseDuration = config.release_duration / 1000
+      this.releaseEnvelope = config.release_envelope
+      //console.log(this.releaseDuration, this.releaseEnvelope);
+    })
+
+    SampleSustainRelease = createClass(Sample, function(config) {
+      this.release = true
+
+      this.sustainStart = config.sustain_start / 1000
+      this.sustainEnd = config.sustain_end / 1000
+      this.releaseDuration = config.release_duration / 1000
+      this.releaseEnvelope = config.release_envelope
+      if (this.releaseEnvelope === undefined) {
+        this.releaseEnvelope = 'equal power'
+      } else if (typeString(this.releaseEnvelope) === 'array') {
+        this.releaseEnvelopeArray = config.release_envelope_array
+        this.releaseEnvelope = 'array'
+      }
+    })
+
+    SampleSustainRelease.prototype.route = function() {
+      this.source.loop = true
+      this.source.loopStart = this.sustainStart
+      this.source.loopEnd = this.sustainEnd
+      this.source.connect(this.output)
+      //console.log(this.sustainStart, this.sustainEnd);
+    }
+
+    SampleReleasePanning = createClass(Sample, function(config) {
+      this.release = true
+
+      this.releaseDuration = config.release_duration / 1000
+      this.releaseEnvelope = config.release_envelope
+      if (this.releaseEnvelope === undefined) {
+        this.releaseEnvelope = 'equal power'
+      } else if (typeString(this.releaseEnvelope) === 'array') {
+        this.releaseEnvelopeArray = config.release_envelope_array
+        this.releaseEnvelope = 'array'
+      }
+      this.panPosition = config.panPosition
+    })
+
+    SampleReleasePanning.prototype.route = function() {
+      //console.log(this.panning);
+      this.panner = createPanner()
+      this.panner.setPosition(this.panPosition || 0)
+      this.source.connect(this.panner.node)
+      this.panner.node.connect(this.output)
+    }
+
+    SampleSustainReleasePanning = createClass(Sample, function(config) {
+      this.release = true
+
+      this.sustainStart = config.sustain_start / 1000
+      this.sustainEnd = config.sustain_end / 1000
+      this.releaseDuration = config.release_duration / 1000
+      this.releaseEnvelope = config.release_envelope
+      if (this.releaseEnvelope === undefined) {
+        this.releaseEnvelope = 'equal power'
+      } else if (typeString(this.releaseEnvelope) === 'array') {
+        this.releaseEnvelopeArray = config.release_envelope_array
+        this.releaseEnvelope = 'array'
+      }
+      this.panPosition = config.panPosition
+    })
+
+    SampleSustainReleasePanning.prototype.route = function() {
+      this.source.loop = true
+      this.source.loopStart = this.sustainStart
+      this.source.loopEnd = this.sustainEnd
+
+      this.panner = createPanner()
+      this.panner.setPosition(this.panPosition || 0)
+      this.source.connect(this.panner.node)
+      this.panner.node.connect(this.output)
+    }
+
+    SampleSynth = createClass(Sample, function(config) {
+      this.release = true
+      this.panPosition = 0
+      this.autopan = config.autopan || false
+      this.frequency = config.event.frequency
+      this.waveForm = config.wave_form || 0
+      this.releaseDuration = config.release_duration / 1000 || 1.5
+      this.releaseEnvelope = config.release_envelope || 'equal power'
+      //console.log(config);
+    })
+
+    SampleSynth.prototype.createSource = function() {
+      this.source = context.createOscillator()
+      this.source.type = this.waveForm
+      this.source.frequency.value = this.frequency
+    }
+
+    SampleSynth.prototype.route = function() {
+      //create some headroom for multi-timbrality
+      this.volume *= 0.3
+      this.output.gain.value = this.volume
+
+      if (this.autopan) {
+        this.panner = createPanner()
+        this.panner.setPosition(0)
+        this.source.connect(this.panner.node)
+        this.panner.node.connect(this.output)
+      } else {
+        this.source.connect(this.output)
+      }
+    }
+    /*
         SampleSynth.prototype.createSource = function(){
             this.autoPanner = context.createOscillator();
             this.autoPanner.type = 0;
@@ -13251,8 +13190,8 @@ if (typeof module !== "undefined" && module !== null) {
             this.output.gain.value = this.volume;
         };
 */
-    });
-}());
+  })
+})()
 (function(){
 
     'use strict';
@@ -15010,7 +14949,7 @@ if (typeof module !== "undefined" && module !== null) {
         this.followEvent = createFollowEvent(this);
 
         this.volume = 1;
-        this.gainNode = context.createGainNode();
+        this.gainNode = context.createGain();
         this.gainNode.gain.value = this.volume;
         this.metronome = createMetronome(this, dispatchEvent);
         this.connect();
@@ -18899,496 +18838,491 @@ if (typeof module !== "undefined" && module !== null) {
 
 */
 
-(function(){
+;(function() {
+  'use strict'
 
-    'use strict';
+  var // satisfy jslint
+    sequencer = window.sequencer,
+    console = window.console,
+    debug = sequencer.debug,
+    slice = Array.prototype.slice,
+    //import
+    createPart, // → defined in part.js
+    typeString, // → defined in utils.js
+    copyName, // → defined in utils.js
+    findItem, // → defined in utils.js
+    objectForEach, // → defined in utils.js
+    checkPosition, // → defined in get_position.js
+    createMidiEvent, // → defined in midi_event.js
+    createMidiNote, // → defined in midi_note.js
+    context, // -> defined in open_module.js
+    createInstrument, // defined in instrument.js
+    createAudioTrack, // defined in audio_track.js
+    createPanner, // defined in channel_effects.js
+    addMidiEventListener, // defined in midi_system.js
+    removeMidiEventListener, // defined in midi_system.js
+    encodeRecording, // defined in audio_recording_encoder.js
+    findEvent, // → defined in find_event.js
+    findNote, // → defined in find_event.js
+    getStats, // → defined in event_statistics.js
+    trackId = 0,
+    //public
+    Track
 
-    var
-        // satisfy jslint
-        sequencer = window.sequencer,
-        console = window.console,
-        debug = sequencer.debug,
+  Track = function(name, type, song) {
+    this.className = 'Track'
+    this.id = 'T' + trackId++ + '' + new Date().getTime()
+    //console.log('creating track', this.id, name);
+    this.type = type || 'instrument'
+    this.name = name || this.id
+    this.song = song
+    this.instrumentName = ''
+    this.events = []
+    this.eventsById = {}
+    this.notes = []
+    this.notesById = {}
+    this.parts = []
+    this.partsById = {}
+    this.numParts = 0
+    this.numEvents = 0
+    this.needsUpdate = false
 
-        slice = Array.prototype.slice,
+    //@TODO: create a plugin that gives a pulsating volume effect
+    //this.volumeChangeMethod = 'equal_power'; // 'direct', equal_power' or 'linear'
 
-        //import
-        createPart, // → defined in part.js
-        typeString, // → defined in utils.js
-        copyName, // → defined in utils.js
-        findItem, // → defined in utils.js
-        objectForEach, // → defined in utils.js
-        checkPosition, // → defined in get_position.js
-        createMidiEvent, // → defined in midi_event.js
-        createMidiNote, // → defined in midi_note.js
-        context, // -> defined in open_module.js
-        createInstrument, // defined in instrument.js
-        createAudioTrack, // defined in audio_track.js
-        createPanner, // defined in channel_effects.js
-        addMidiEventListener, // defined in midi_system.js
-        removeMidiEventListener, // defined in midi_system.js
-        encodeRecording, // defined in audio_recording_encoder.js
+    /* routing */
+    this.effects = {}
+    this.numEffects = 0
+    this.volume = 1
 
+    this.input = context.createGain()
+    this.input.gain.value = 1
 
-        findEvent, // → defined in find_event.js
-        findNote, // → defined in find_event.js
-        getStats, // → defined in event_statistics.js
+    this.output = context.createGain()
+    this.output.gain.value = this.volume
+    this.panner = createPanner()
+    // input to panner
+    this.input.connect(this.panner.node)
+    // panner to output, and output to song.gain as soon as the track gets added to a song
+    this.panner.node.connect(this.output)
+    this.lastEffect = this.input
 
-        trackId = 0,
+    this.midiInputs = {}
+    this.midiOutputs = {}
+    this.routeToMidiOut = false
+    this.midiEventListeners = {}
+    this.monitor = false
+    this.recordEnabled = false
 
-        //public
-        Track;
+    this.mute = false
+    this.solo = false
+    this.channel = 'any' // note that this is the output channel, i.e. the events of this track are routed to the set channel
+    this.quantizeValue = 0
+    this.fixedLengthValue = 0
+    this.autoQuantize = false
+    this.retrospectiveRecording = []
+    this.recordingNotes = {}
+    this.enableRetrospectiveRecording = false
+    if (type !== 'metronome') {
+      //console.log(this.instrumentName, this.id);
+      this.setInstrument(this.instrumentName)
+    }
+    //this.audio = createAudioTrack(this);
+  }
 
+  function getPart(data, track) {
+    var part = false
+    if (!data) {
+      part = false
+    } else if (data.className === 'Part') {
+      part = data
+    } else if (typeString(data) === 'string') {
+      part = track.partsById[data]
+    } else if (isNaN(data) === false) {
+      part = track.parts[data]
+    }
+    return part
+  }
 
-    Track = function(name, type, song){
-        this.className = 'Track';
-        this.id = 'T' + trackId++ + '' + new Date().getTime();
-        //console.log('creating track', this.id, name);
-        this.type = type || 'instrument';
-        this.name = name || this.id;
-        this.song = song;
-        this.instrumentName = '';
-        this.events = [];
-        this.eventsById = {};
-        this.notes = [];
-        this.notesById = {};
-        this.parts = [];
-        this.partsById = {};
-        this.numParts = 0;
-        this.numEvents = 0;
-        this.needsUpdate = false;
+  function getEvent(data, track) {
+    var event = false
+    if (!data) {
+      event = false
+    } else if (
+      data.className === 'MidiEvent' ||
+      data.className === 'AudioEvent'
+    ) {
+      event = data
+    } else if (typeString(data) === 'array' && data.length === 4) {
+      // new event as array
+      event = createMidiEvent(data)
+    } else if (typeString(data) === 'string') {
+      // get event by id
+      event = track.eventsById[data]
+    } else if (isNaN(data) === false) {
+      // get event by index
+      event = track.events[data]
+    }
+    return event
+  }
 
-        //@TODO: create a plugin that gives a pulsating volume effect
-        //this.volumeChangeMethod = 'equal_power'; // 'direct', equal_power' or 'linear'
+  function getPartsAndConfig(args, track) {
+    args = Array.prototype.slice.call(args)
+    var j = 0,
+      i = 0,
+      maxi,
+      part,
+      arg,
+      arg0 = args[0],
+      parts = [],
+      config = []
 
-        /* routing */
-        this.effects = {};
-        this.numEffects = 0;
-        this.volume = 1;
+    //console.log(args, track);
+    //console.log(args);
+    //console.log(arg0);
 
-        this.input = context.createGainNode();
-        this.input.gain.value = 1;
-
-
-        this.output = context.createGainNode();
-        this.output.gain.value = this.volume;
-        this.panner = createPanner();
-        // input to panner
-        this.input.connect(this.panner.node);
-        // panner to output, and output to song.gain as soon as the track gets added to a song
-        this.panner.node.connect(this.output);
-        this.lastEffect = this.input;
-
-
-        this.midiInputs = {};
-        this.midiOutputs = {};
-        this.routeToMidiOut = false;
-        this.midiEventListeners = {};
-        this.monitor = false;
-        this.recordEnabled = false;
-
-        this.mute = false;
-        this.solo = false;
-        this.channel = 'any'; // note that this is the output channel, i.e. the events of this track are routed to the set channel
-        this.quantizeValue = 0;
-        this.fixedLengthValue = 0;
-        this.autoQuantize = false;
-        this.retrospectiveRecording = [];
-        this.recordingNotes = {};
-        this.enableRetrospectiveRecording = false;
-        if(type !== 'metronome'){
-            //console.log(this.instrumentName, this.id);
-            this.setInstrument(this.instrumentName);
+    if (typeString(arg0) === 'array') {
+      for (i = arg0.length - 1; i >= 0; i--) {
+        arg = arg0[i]
+        part = getPart(arg, track)
+        if (part) {
+          parts.push(part)
         }
-        //this.audio = createAudioTrack(this);
-    };
-
-
-    function getPart(data, track){
-        var part = false;
-        if(!data){
-            part = false;
-        }else if(data.className === 'Part'){
-            part = data;
-        }else if(typeString(data) === 'string'){
-            part = track.partsById[data];
-        }else if(isNaN(data) === false){
-            part = track.parts[data];
-        }
-        return part;
+      }
+      j = parts.length === 0 ? 0 : 1
     }
 
-
-    function getEvent(data, track){
-        var event = false;
-        if(!data){
-            event = false;
-        }else if(data.className === 'MidiEvent' || data.className === 'AudioEvent'){
-            event = data;
-        }else if(typeString(data) === 'array' && data.length === 4){
-            // new event as array
-            event = createMidiEvent(data);
-        }else if(typeString(data) === 'string'){
-            // get event by id
-            event = track.eventsById[data];
-        }else if(isNaN(data) === false){
-            // get event by index
-            event = track.events[data];
-        }
-        return event;
+    maxi = args.length
+    for (i = j; i < maxi; i++) {
+      arg = args[i]
+      part = getPart(arg, track)
+      if (part) {
+        parts.push(part)
+      } else {
+        config.push(arg)
+      }
     }
 
-
-    function getPartsAndConfig(args, track){
-        args = Array.prototype.slice.call(args);
-        var
-            j = 0,
-            i = 0,
-            maxi,
-            part,
-            arg,
-            arg0 = args[0],
-            parts = [],
-            config = [];
-
-        //console.log(args, track);
-        //console.log(args);
-        //console.log(arg0);
-
-        if(typeString(arg0) === 'array'){
-
-            for(i = arg0.length - 1; i >= 0; i--){
-                arg = arg0[i];
-                part = getPart(arg, track);
-                if(part){
-                    parts.push(part);
-                }
-            }
-            j = parts.length === 0 ? 0 : 1;
-        }
-
-        maxi = args.length;
-        for(i = j; i < maxi; i++){
-            arg = args[i];
-            part = getPart(arg, track);
-            if(part){
-                parts.push(part);
-            }else{
-                config.push(arg);
-            }
-        }
-
-        if(parts.length === 0){
-            //console.error('Please provide one or more parts, or an array of parts');
-            console.warn('no parts added');
-            return false;
-        }
-/*
+    if (parts.length === 0) {
+      //console.error('Please provide one or more parts, or an array of parts');
+      console.warn('no parts added')
+      return false
+    }
+    /*
         if(config.length === 1 && typeString(config[0]) === 'array'){
             config = config[0];
         }
 */
-        return {
-            parts: parts,
-            config: config
-        };
+    return {
+      parts: parts,
+      config: config
+    }
+  }
+
+  function getEventsAndConfig(args, track) {
+    args = Array.prototype.slice.call(args)
+
+    var j = 0,
+      i = 0,
+      maxi,
+      event,
+      arg,
+      arg0 = args[0],
+      events = [],
+      config = []
+
+    if (typeString(arg0) === 'array') {
+      for (i = arg0.length - 1; i >= 0; i--) {
+        arg = arg0[i]
+        //@TODO: this can be dangerous!
+        //console.log(arg);
+        event = getEvent(arg, track)
+        //console.log(event);
+        if (event) {
+          events.push(event)
+        }
+      }
+      //j = events.length === 0 ? 0 : 1;
+      j = 1
     }
 
-
-    function getEventsAndConfig(args, track){
-        args = Array.prototype.slice.call(args);
-
-        var
-            j = 0,
-            i = 0,
-            maxi,
-            event,
-            arg,
-            arg0 = args[0],
-            events = [],
-            config = [];
-
-
-        if(typeString(arg0) === 'array'){
-
-            for(i = arg0.length - 1; i >= 0; i--){
-                arg = arg0[i];
-                //@TODO: this can be dangerous!
-                //console.log(arg);
-                event = getEvent(arg, track);
-                //console.log(event);
-                if(event){
-                    events.push(event);
-                }
-            }
-            //j = events.length === 0 ? 0 : 1;
-            j = 1;
-        }
-
-        maxi = args.length;
-        for(i = j; i < maxi; i++){
-            arg = args[i];
-            event = getEvent(arg, track);
-            if(event){
-                events.push(event);
-            }else{
-                config.push(arg);
-            }
-        }
-
-        if(events.length === 0){
-            if(debug >= 2){
-                console.info('Please provide one or more events, or an array of events');
-            }
-        }
-
-        if(config.length === 1 && typeString(config[0]) === 'array'){
-            config = config[0];
-        }
-
-        //console.log(events);
-        //console.log(config);
-
-        return {
-            events: events,
-            config: config
-        };
+    maxi = args.length
+    for (i = j; i < maxi; i++) {
+      arg = args[i]
+      event = getEvent(arg, track)
+      if (event) {
+        events.push(event)
+      } else {
+        config.push(arg)
+      }
     }
 
-
-    function getTicksAtPosition(position, song){
-        var type, ticks;
-
-        position = checkPosition(position);
-
-        if(position === false){
-            //console.warn('wrong position data');
-            return false;
-        }
-
-        type = position[0];
-
-        if(song === undefined && type !== 'ticks'){
-            console.error('Track has not been added to a song yet, you can only use tick values');
-            return false;
-        }
-
-        switch(type){
-            case 'ticks':
-                ticks = position[1];
-                break;
-            case 'millis':
-                ticks = song.millisToTicks(position[1]);
-                break;
-            case 'barsbeats':
-            case 'barsandbeats':
-            case 'time':
-                position = song.getPosition(position, 'ticks');
-                ticks = position.ticks;
-                break;
-        }
-        //return parseInt(ticks, 10);
-        return ticks;
+    if (events.length === 0) {
+      if (debug >= 2) {
+        console.info('Please provide one or more events, or an array of events')
+      }
     }
 
-
-    function addParts(args, track){
-        if(args === false){
-            return;
-        }
-        var i, j, e, part, eventsById, ticks, move,
-            song = track.song,
-            parts = args.parts,
-            maxi = parts.length,
-            partsById = track.partsById;
-
-
-        //for(i = parts.length - 1; i >= 0; i--){
-        for(i = 0; i < maxi; i++){
-            part = getPart(parts[i]);
-
-            if(part === false){
-                console.error(part, 'is not a part');
-                continue;
-            }
-            if(part.track !== undefined){
-                //console.warn('this part has already been added to track', part.track.id, ', adding a copy');
-                part = part.copy();
-            }
-
-            //console.log(part.id, part.trackId);
-
-            part.song = song;
-            part.track = track;
-            part.trackId = track.id;
-
-            eventsById = part.eventsById;
-            ticks = part.ticks;
-            move = ticks !== 0;
-
-            //console.log(part.id, move, eventsById);
-
-            for(j in eventsById){
-                if(eventsById.hasOwnProperty(j)){
-                    e = eventsById[j];
-                    //console.log(e, track, track.id);
-                    e.track = track;
-                    e.channel = track.channel;
-                    e.trackId = track.id;
-                    if(move){
-                        e.ticks += ticks;
-                    }
-                    e.state = 'new';
-                }
-            }
-
-            part.state = 'new';
-
-            //if(move){
-                part.needsUpdate = true;
-            //}
-
-            partsById[part.id] = part;
-        }
-
-        track.needsUpdate = true;
+    if (config.length === 1 && typeString(config[0]) === 'array') {
+      config = config[0]
     }
 
+    //console.log(events);
+    //console.log(config);
 
-    function moveParts(args, track){
-        if(args === false){
-            return;
-        }
-        var newTicks, part,
-            parts = args.parts,
-            ticks = args.config[0],
-            diffTicks = ticks, i;
+    return {
+      events: events,
+      config: config
+    }
+  }
 
-        //console.log('moveParts',parts);
+  function getTicksAtPosition(position, song) {
+    var type, ticks
 
-        for(i = parts.length - 1; i >= 0; i--){
-            part = parts[i];
-            newTicks = part.ticks + ticks;
+    position = checkPosition(position)
 
-            //console.log(newTicks, ticks, part.ticks);
-
-            if(newTicks < 0){
-                newTicks = 0;
-                diffTicks = -part.ticks;
-            }
-
-            part.ticks = newTicks;
-            //console.log(part.events, diffTicks);
-            part.moveEvents(part.events, diffTicks);
-            if(part.state !== 'new'){
-                part.state = 'changed';
-            }
-            //console.log('Track.moveParts()', part.state);
-        }
-        track.needsUpdate = true;
+    if (position === false) {
+      //console.warn('wrong position data');
+      return false
     }
 
+    type = position[0]
 
-    function movePartsTo(args, track){
-        if(args === false){
-            return;
-        }
-
-        var i, part, ticks, diffTicks,
-            song = track.song,
-            parts = args.parts,
-            positions = args.config;
-
-        for(i = parts.length - 1; i >= 0; i--){
-            part = parts[i];
-            ticks = getTicksAtPosition(positions[i], song);
-            // /console.log(ticks, positions[i]);
-
-            if(ticks === false){
-                console.warn('wrong position data, skipping part', part.id);
-                continue;
-            }
-
-            diffTicks = ticks - part.ticks;
-            //console.log(part.ticks, ticks, diffTicks);
-            part.ticks = ticks;
-            part.moveAllEvents(diffTicks);
-            //console.log('Track.movePartsTo()', part.state);
-            if(part.state !== 'new'){
-                part.state = 'changed';
-            }
-        }
-
-        track.needsUpdate = true;
+    if (song === undefined && type !== 'ticks') {
+      console.error(
+        'Track has not been added to a song yet, you can only use tick values'
+      )
+      return false
     }
 
+    switch (type) {
+      case 'ticks':
+        ticks = position[1]
+        break
+      case 'millis':
+        ticks = song.millisToTicks(position[1])
+        break
+      case 'barsbeats':
+      case 'barsandbeats':
+      case 'time':
+        position = song.getPosition(position, 'ticks')
+        ticks = position.ticks
+        break
+    }
+    //return parseInt(ticks, 10);
+    return ticks
+  }
 
-    function removeParts(args, track){
-        if(args === false){
-            return [];
+  function addParts(args, track) {
+    if (args === false) {
+      return
+    }
+    var i,
+      j,
+      e,
+      part,
+      eventsById,
+      ticks,
+      move,
+      song = track.song,
+      parts = args.parts,
+      maxi = parts.length,
+      partsById = track.partsById
+
+    //for(i = parts.length - 1; i >= 0; i--){
+    for (i = 0; i < maxi; i++) {
+      part = getPart(parts[i])
+
+      if (part === false) {
+        console.error(part, 'is not a part')
+        continue
+      }
+      if (part.track !== undefined) {
+        //console.warn('this part has already been added to track', part.track.id, ', adding a copy');
+        part = part.copy()
+      }
+
+      //console.log(part.id, part.trackId);
+
+      part.song = song
+      part.track = track
+      part.trackId = track.id
+
+      eventsById = part.eventsById
+      ticks = part.ticks
+      move = ticks !== 0
+
+      //console.log(part.id, move, eventsById);
+
+      for (j in eventsById) {
+        if (eventsById.hasOwnProperty(j)) {
+          e = eventsById[j]
+          //console.log(e, track, track.id);
+          e.track = track
+          e.channel = track.channel
+          e.trackId = track.id
+          if (move) {
+            e.ticks += ticks
+          }
+          e.state = 'new'
         }
-        var i, part,
-            removed = [],
-            tobeRemoved = args.parts;
+      }
 
-        if(tobeRemoved === undefined){
-            console.log('weird situation, check this when it happens');
-            return [];
-        }
+      part.state = 'new'
 
-        for(i = tobeRemoved.length - 1; i >= 0; i--){
-            part = tobeRemoved[i];
-            //console.log('removing part', part, 'from track', track.id);
-            if(part.track !== undefined && part.track !== track){
-                console.warn('can\'t remove: this part belongs to track', part.track.id);
-                continue;
-            }
+      //if(move){
+      part.needsUpdate = true
+      //}
 
-            removed.push(part);
-            part.state = 'removed';
-            part.reset(true, true);
-        }
-        track.needsUpdate = true;
-        return removed;
+      partsById[part.id] = part
     }
 
+    track.needsUpdate = true
+  }
 
-    function removeEvents(args, track){
-        if(args === false){
-            return;
-        }
+  function moveParts(args, track) {
+    if (args === false) {
+      return
+    }
+    var newTicks,
+      part,
+      parts = args.parts,
+      ticks = args.config[0],
+      diffTicks = ticks,
+      i
 
-        var i, part, partId, event, eventsPerPart = {},
-            removed = [],
-            tobeRemoved = args;//.events;
+    //console.log('moveParts',parts);
 
+    for (i = parts.length - 1; i >= 0; i--) {
+      part = parts[i]
+      newTicks = part.ticks + ticks
 
-        for(i = tobeRemoved.length - 1; i >= 0; i--){
-            event = tobeRemoved[i];
-            if(event.track !== undefined && event.track !== track){
-                console.warn('can\'t remove: this event belongs to track', event.track.id);
-                continue;
-            }
-            partId = event.partId;
-            if(eventsPerPart[partId] === undefined){
-                eventsPerPart[partId] = [];
-            }
-            eventsPerPart[partId].push(event);
-            removed.push(event);
-        }
+      //console.log(newTicks, ticks, part.ticks);
 
-        for(partId in eventsPerPart){
-            if(eventsPerPart.hasOwnProperty(partId)){
-                part = track.partsById[partId];
-                part.removeEvents(eventsPerPart[partId]);
-            }
-        }
+      if (newTicks < 0) {
+        newTicks = 0
+        diffTicks = -part.ticks
+      }
 
-        track.needsUpdate = true;
-        return removed;
+      part.ticks = newTicks
+      //console.log(part.events, diffTicks);
+      part.moveEvents(part.events, diffTicks)
+      if (part.state !== 'new') {
+        part.state = 'changed'
+      }
+      //console.log('Track.moveParts()', part.state);
+    }
+    track.needsUpdate = true
+  }
+
+  function movePartsTo(args, track) {
+    if (args === false) {
+      return
     }
 
+    var i,
+      part,
+      ticks,
+      diffTicks,
+      song = track.song,
+      parts = args.parts,
+      positions = args.config
 
-/*
+    for (i = parts.length - 1; i >= 0; i--) {
+      part = parts[i]
+      ticks = getTicksAtPosition(positions[i], song)
+      // /console.log(ticks, positions[i]);
+
+      if (ticks === false) {
+        console.warn('wrong position data, skipping part', part.id)
+        continue
+      }
+
+      diffTicks = ticks - part.ticks
+      //console.log(part.ticks, ticks, diffTicks);
+      part.ticks = ticks
+      part.moveAllEvents(diffTicks)
+      //console.log('Track.movePartsTo()', part.state);
+      if (part.state !== 'new') {
+        part.state = 'changed'
+      }
+    }
+
+    track.needsUpdate = true
+  }
+
+  function removeParts(args, track) {
+    if (args === false) {
+      return []
+    }
+    var i,
+      part,
+      removed = [],
+      tobeRemoved = args.parts
+
+    if (tobeRemoved === undefined) {
+      console.log('weird situation, check this when it happens')
+      return []
+    }
+
+    for (i = tobeRemoved.length - 1; i >= 0; i--) {
+      part = tobeRemoved[i]
+      //console.log('removing part', part, 'from track', track.id);
+      if (part.track !== undefined && part.track !== track) {
+        console.warn("can't remove: this part belongs to track", part.track.id)
+        continue
+      }
+
+      removed.push(part)
+      part.state = 'removed'
+      part.reset(true, true)
+    }
+    track.needsUpdate = true
+    return removed
+  }
+
+  function removeEvents(args, track) {
+    if (args === false) {
+      return
+    }
+
+    var i,
+      part,
+      partId,
+      event,
+      eventsPerPart = {},
+      removed = [],
+      tobeRemoved = args //.events;
+
+    for (i = tobeRemoved.length - 1; i >= 0; i--) {
+      event = tobeRemoved[i]
+      if (event.track !== undefined && event.track !== track) {
+        console.warn(
+          "can't remove: this event belongs to track",
+          event.track.id
+        )
+        continue
+      }
+      partId = event.partId
+      if (eventsPerPart[partId] === undefined) {
+        eventsPerPart[partId] = []
+      }
+      eventsPerPart[partId].push(event)
+      removed.push(event)
+    }
+
+    for (partId in eventsPerPart) {
+      if (eventsPerPart.hasOwnProperty(partId)) {
+        part = track.partsById[partId]
+        part.removeEvents(eventsPerPart[partId])
+      }
+    }
+
+    track.needsUpdate = true
+    return removed
+  }
+
+  /*
     getInput = function(){
         var args = Array.prototype.slice.call(arguments),
             loop, arg,
@@ -19417,61 +19351,63 @@ if (typeof module !== "undefined" && module !== null) {
     };
 */
 
-    Track.prototype.addPart = Track.prototype.addParts = function(){//newParts
-        //console.log('addPart',arguments);
-        var args = getPartsAndConfig(arguments, this);
-        addParts(args, this);
-    };
+  Track.prototype.addPart = Track.prototype.addParts = function() {
+    //newParts
+    //console.log('addPart',arguments);
+    var args = getPartsAndConfig(arguments, this)
+    addParts(args, this)
+  }
 
+  //addPartsAt(part1,part2,'ticks',480,1920); -> no
+  //addPartsAt([part1,part2],'ticks',[480,1920]); -> no
+  //addPartsAt([part1,part2],['ticks',480,1920]); -> no
 
-    //addPartsAt(part1,part2,'ticks',480,1920); -> no
-    //addPartsAt([part1,part2],'ticks',[480,1920]); -> no
-    //addPartsAt([part1,part2],['ticks',480,1920]); -> no
+  //addPartsAt([part1, part2], [['ticks',480], ['ticks',1920]]); -> yes
+  //addPartsAt(part1, part2, ['ticks',480], ['ticks',1920]); -> yes
+  //addPartsAt(part1, part2, [['ticks',480], ['ticks',1920]]); -> yes
+  //addPartsAt([part1, part2], ['ticks',480], ['ticks',1920]); -> yes
 
-    //addPartsAt([part1, part2], [['ticks',480], ['ticks',1920]]); -> yes
-    //addPartsAt(part1, part2, ['ticks',480], ['ticks',1920]); -> yes
-    //addPartsAt(part1, part2, [['ticks',480], ['ticks',1920]]); -> yes
-    //addPartsAt([part1, part2], ['ticks',480], ['ticks',1920]); -> yes
+  Track.prototype.addPartAt = Track.prototype.addPartsAt = function() {
+    var args = getPartsAndConfig(arguments, this),
+      config,
+      parts,
+      i,
+      part,
+      ticks
 
-    Track.prototype.addPartAt = Track.prototype.addPartsAt = function(){
-        var args = getPartsAndConfig(arguments, this),
-            config,
-            parts,
-            i, part, ticks;
+    if (args === false) {
+      return
+    }
 
-        if(args === false){
-            return;
-        }
+    parts = args.parts
+    config = args.config
 
-        parts = args.parts;
-        config = args.config;
+    if (config === undefined) {
+      console.error('please provide position data')
+      return false
+    }
 
-        if(config === undefined){
-            console.error('please provide position data');
-            return false;
-        }
+    //console.log('addPartsAt', args.parts, args.config);
 
-        //console.log('addPartsAt', args.parts, args.config);
+    for (i = parts.length - 1; i >= 0; i--) {
+      part = parts[i]
+      if (config[0] === 'ticks') {
+        ticks = config[1]
+      } else {
+        ticks = getTicksAtPosition(config[i], this.song)
+      }
+      //console.log('addPartsAt',this.id, part.track, part.id, ticks, config[i]);
+      //console.log(part.ticks, ticks);
+      if (ticks === false) {
+        continue
+      }
+      part.ticks += ticks
+    }
 
-        for(i = parts.length - 1; i >= 0; i--){
-            part = parts[i];
-            if(config[0] === 'ticks'){
-                ticks = config[1];
-            }else{
-                ticks = getTicksAtPosition(config[i], this.song);
-            }
-            //console.log('addPartsAt',this.id, part.track, part.id, ticks, config[i]);
-            //console.log(part.ticks, ticks);
-            if(ticks === false){
-                continue;
-            }
-            part.ticks += ticks;
-        }
+    addParts(args, this)
+  }
 
-        addParts(args, this);
-    };
-
-/*
+  /*
     Track.prototype.addPartAt = function(part, position){
         var ticks = getTicksAtPosition(position);
         part = getPart(part, this);
@@ -19492,232 +19428,238 @@ if (typeof module !== "undefined" && module !== null) {
     };
 */
 
-    Track.prototype.movePart = Track.prototype.moveParts = function(){//parts, ticks
-        var args = getPartsAndConfig(arguments, this);
-        moveParts(args, this);
-    };
+  Track.prototype.movePart = Track.prototype.moveParts = function() {
+    //parts, ticks
+    var args = getPartsAndConfig(arguments, this)
+    moveParts(args, this)
+  }
 
+  Track.prototype.movePartTo = Track.prototype.movePartsTo = function() {
+    //selectedParts, position
+    console.log('movePartTo', arguments)
+    var args = getPartsAndConfig(arguments, this)
+    movePartsTo(args, this)
+  }
 
-    Track.prototype.movePartTo = Track.prototype.movePartsTo = function(){//selectedParts, position
-        console.log('movePartTo', arguments);
-        var args = getPartsAndConfig(arguments, this);
-        movePartsTo(args, this);
-    };
+  Track.prototype.moveAllParts = function(ticks) {
+    this.moveParts({ parts: this.parts, config: [ticks] })
+  }
 
+  Track.prototype.copyPart = Track.prototype.copyParts = function() {
+    var args = getPartsAndConfig(arguments, this),
+      selectedParts,
+      copiedParts = []
 
-    Track.prototype.moveAllParts = function(ticks){
-        this.moveParts({parts: this.parts, config:[ticks]});
-    };
+    if (args === false) {
+      return
+    }
 
+    if (selectedParts.length === 0) {
+      console.error('no parts')
+      return
+    }
+    selectedParts = args.parts
 
-    Track.prototype.copyPart = Track.prototype.copyParts = function(){
-        var args = getPartsAndConfig(arguments, this),
-            selectedParts,
-            copiedParts = [];
+    selectedParts.forEach(function(part) {
+      copiedParts.push(part.copy())
+    })
 
-        if(args === false){
-            return;
+    return copiedParts.length === 1 ? copiedParts[0] : copiedParts
+  }
+
+  Track.prototype.removePart = function() {
+    var args = getPartsAndConfig(arguments, this),
+      removed = removeParts(args, this)
+    return removed.length === 1 ? removed[0] : removed
+  }
+
+  Track.prototype.removeParts = function() {
+    var args = getPartsAndConfig(arguments, this)
+    return removeParts(args, this)
+  }
+
+  Track.prototype.getPart = function(arg) {
+    return getPart(arg)
+  }
+
+  Track.prototype.getParts = function() {
+    var args = Array.prototype.slice.call(arguments),
+      arg,
+      result = [],
+      loop
+
+    loop = function(data, i) {
+      arg = data[i]
+      if (typeString(arg) === 'array') {
+        loop(arg, 0)
+      } else {
+        result.push(getPart(arg))
+      }
+    }
+
+    loop(args, 0)
+    return result
+  }
+
+  Track.prototype.getPartAt = Track.prototype.getPartsAt = function(position) {
+    var ticks = getTicksAtPosition(position, this.song),
+      parts = this.parts,
+      selectedParts = []
+
+    if (ticks === false) {
+      console.error(
+        "please provide position as array, for instance: ['barsandbeats',5,1,2,0]"
+      )
+      return
+    }
+
+    parts.forEach(function(part) {
+      if (part.ticks === ticks) {
+        selectedParts.push(part)
+      }
+    })
+
+    return selectedParts
+  }
+
+  Track.prototype.getPartFromTo = Track.prototype.getPartsFromTo = function(
+    from,
+    to
+  ) {
+    var parts = this.parts,
+      selectedParts = [],
+      fromTicks = getTicksAtPosition(from, this.song),
+      toTicks = getTicksAtPosition(to, this.song)
+
+    if (fromTicks === false) {
+      console.error('invalid position data for from position')
+      return
+    }
+
+    if (toTicks === false) {
+      console.error('invalid position data for from position')
+      return
+    }
+
+    parts.forEach(function(part) {
+      if (
+        (fromTicks >= part.start.ticks && fromTicks <= part.end.ticks) ||
+        (toTicks >= part.start.ticks && toTicks <= part.end.ticks)
+      ) {
+        selectedParts.push(part)
+      }
+    })
+
+    return selectedParts
+  }
+
+  Track.prototype.getPartBetween = Track.prototype.getPartBetween = function(
+    from,
+    to
+  ) {
+    var parts = this.parts,
+      selectedParts = [],
+      fromTicks = getTicksAtPosition(from, this.song),
+      toTicks = getTicksAtPosition(toTicks, this.song)
+
+    if (fromTicks === false || toTicks === false) {
+      console.error(
+        "please provide position as array, for instance: ['barsandbeats',5,1,2,0]"
+      )
+      return
+    }
+
+    parts.forEach(function(part) {
+      if (part.start.ticks >= fromTicks && part.end.ticks <= toTicks) {
+        selectedParts.push(part)
+      }
+    })
+
+    return selectedParts
+  }
+
+  Track.prototype.copy = function() {
+    var track = new Track(copyName(this.name)),
+      part,
+      i,
+      effect,
+      parts = this.parts,
+      copiedParts = []
+
+    track.song = null
+    track.instrumentId = this.instrumentId
+    track.numEffects = this.numEffects
+    if (this.numEffects > 0) {
+      track.effects = {}
+      for (i in this.effects) {
+        if (this.effects.hasOwnProperty(i)) {
+          effect = this.effects[i]
+          track.effects[effect.id] = effect.copy()
         }
+      }
+    }
 
-        if(selectedParts.length === 0){
-            console.error('no parts');
-            return;
-        }
-        selectedParts = args.parts;
+    for (i = parts.length - 1; i >= 0; i--) {
+      part = parts[i]
+      copiedParts.push(part.copy())
+    }
+    //console.log(parts.length);
+    track.addParts(copiedParts)
+    return track
+  }
 
-        selectedParts.forEach(function(part){
-            copiedParts.push(part.copy());
-        });
+  Track.prototype.removeEvent = Track.prototype.removeEvents = function() {
+    //events
+    var args = getEventsAndConfig(arguments, this)
+    removeEvents(args.events, this)
+  }
 
-        return copiedParts.length === 1 ? copiedParts[0] : copiedParts;
-    };
+  Track.prototype.removeEventsFromTo = function(from, to) {
+    console.warn('removeEventsFromTo() is temporarily disabled')
+    //removeEventsFromTo(from, to, this);
+  }
 
+  Track.prototype.removeEventAt = Track.prototype.removeEventsAt = function(
+    position
+  ) {
+    console.warn('removeEventAt() is temporarily disabled')
+    //removeEventsAt(position, this);
+  }
 
-    Track.prototype.removePart = function(){
-        var args = getPartsAndConfig(arguments, this),
-            removed = removeParts(args, this);
-        return removed.length === 1 ? removed[0] : removed;
-    };
+  Track.prototype.removeAllEvents = function() {
+    removeEvents(this.events, this)
+  }
 
+  Track.prototype.transposePart = function(part, semi) {
+    var stats = part.getStats('noteNumber all'),
+      min = 0,
+      max = 127,
+      semi2
+    //console.log('transposePart', semi);
+    if (this.song) {
+      min = this.song.lowestNote
+      max = this.song.highestNote
+    }
+    //console.log(stats.min, min, stats.max, max);
+    if (stats.min + semi < min) {
+      semi2 = min - stats.min
+      return
+    } else if (stats.max + semi > max) {
+      semi2 = max = stats.max
+      return
+    }
+    //console.log(semi, semi2);
+    part.transposeAllEvents(semi)
+  }
 
-    Track.prototype.removeParts = function(){
-        var args = getPartsAndConfig(arguments, this);
-        return removeParts(args, this);
-    };
+  // Track.prototype.addEvents = function(){
+  //     var part = sequencer.createPart();
+  //     part.addEvents(arguments);
+  //     this.addPart(part);
+  // };
 
-
-    Track.prototype.getPart = function(arg){
-        return getPart(arg);
-    };
-
-
-    Track.prototype.getParts = function(){
-        var args = Array.prototype.slice.call(arguments),
-            arg,
-            result = [],
-            loop;
-
-        loop = function(data, i){
-            arg = data[i];
-            if(typeString(arg) === 'array'){
-                loop(arg, 0);
-            }else{
-                result.push(getPart(arg));
-            }
-        };
-
-        loop(args, 0);
-        return result;
-    };
-
-
-    Track.prototype.getPartAt = Track.prototype.getPartsAt = function(position){
-        var ticks = getTicksAtPosition(position, this.song),
-            parts = this.parts,
-            selectedParts = [];
-
-        if(ticks === false){
-            console.error('please provide position as array, for instance: [\'barsandbeats\',5,1,2,0]');
-            return;
-        }
-
-        parts.forEach(function(part){
-            if(part.ticks === ticks){
-                selectedParts.push(part);
-            }
-        });
-
-        return selectedParts;
-    };
-
-
-    Track.prototype.getPartFromTo = Track.prototype.getPartsFromTo = function(from, to){
-        var parts = this.parts,
-            selectedParts = [],
-            fromTicks = getTicksAtPosition(from, this.song),
-            toTicks = getTicksAtPosition(to, this.song);
-
-        if(fromTicks === false){
-            console.error('invalid position data for from position');
-            return;
-        }
-
-        if(toTicks === false){
-            console.error('invalid position data for from position');
-            return;
-        }
-
-        parts.forEach(function(part){
-            if(fromTicks >= part.start.ticks && fromTicks <= part.end.ticks || toTicks >= part.start.ticks && toTicks <= part.end.ticks){
-                selectedParts.push(part);
-            }
-        });
-
-        return selectedParts;
-    };
-
-
-    Track.prototype.getPartBetween = Track.prototype.getPartBetween = function(from, to){
-        var parts = this.parts,
-            selectedParts = [],
-            fromTicks = getTicksAtPosition(from, this.song),
-            toTicks = getTicksAtPosition(toTicks, this.song);
-
-        if(fromTicks === false || toTicks === false){
-            console.error('please provide position as array, for instance: [\'barsandbeats\',5,1,2,0]');
-            return;
-        }
-
-        parts.forEach(function(part){
-            if(part.start.ticks >= fromTicks && part.end.ticks <= toTicks){
-                selectedParts.push(part);
-            }
-        });
-
-        return selectedParts;
-    };
-
-
-    Track.prototype.copy = function(){
-        var track = new Track(copyName(this.name)),
-            part, i, effect,
-            parts = this.parts,
-            copiedParts = [];
-
-        track.song = null;
-        track.instrumentId = this.instrumentId;
-        track.numEffects = this.numEffects;
-        if(this.numEffects > 0){
-            track.effects = {};
-            for(i in this.effects){
-                if(this.effects.hasOwnProperty(i)){
-                    effect = this.effects[i];
-                    track.effects[effect.id] = effect.copy();
-                }
-            }
-        }
-
-        for(i = parts.length - 1; i >= 0; i--){
-            part = parts[i];
-            copiedParts.push(part.copy());
-        }
-        //console.log(parts.length);
-        track.addParts(copiedParts);
-        return track;
-    };
-
-
-    Track.prototype.removeEvent = Track.prototype.removeEvents = function(){//events
-        var args = getEventsAndConfig(arguments, this);
-        removeEvents(args.events, this);
-    };
-
-
-    Track.prototype.removeEventsFromTo = function(from, to){
-        console.warn('removeEventsFromTo() is temporarily disabled');
-        //removeEventsFromTo(from, to, this);
-    };
-
-
-    Track.prototype.removeEventAt = Track.prototype.removeEventsAt = function(position){
-        console.warn('removeEventAt() is temporarily disabled');
-        //removeEventsAt(position, this);
-    };
-
-
-    Track.prototype.removeAllEvents = function(){
-        removeEvents(this.events, this);
-    };
-
-
-    Track.prototype.transposePart = function(part, semi){
-        var stats = part.getStats('noteNumber all'),
-            min = 0, max = 127, semi2;
-        //console.log('transposePart', semi);
-        if(this.song){
-            min = this.song.lowestNote;
-            max = this.song.highestNote;
-        }
-        //console.log(stats.min, min, stats.max, max);
-        if(stats.min + semi < min){
-            semi2 = min - stats.min;
-            return;
-        }else if(stats.max + semi > max){
-            semi2 = max = stats.max;
-            return;
-        }
-        //console.log(semi, semi2);
-        part.transposeAllEvents(semi);
-    };
-
-    // Track.prototype.addEvents = function(){
-    //     var part = sequencer.createPart();
-    //     part.addEvents(arguments);
-    //     this.addPart(part);
-    // };
-
-    // move events
-/*
+  // move events
+  /*
     Track.prototype.moveEvent = Track.prototype.moveEvents = function(){//events, ticks
         var args = getEventsAndConfig(arguments);
         moveEvents(args.config[0], args.events, this);
@@ -19785,134 +19727,127 @@ if (typeof module !== "undefined" && module !== null) {
     };
 */
 
-    Track.prototype.reset = function(){
-        var id, part;
-        this.song = null;
-        // fixing issue #5
-        if(this.audio){
-            this.audio.setSong(null);
-        }
-        for(id in this.partsById){
-            if(this.partsById.hasOwnProperty(id)){
-                part = this.partsById[id];
-                // don't reset from track, reset from song only
-                part.reset(false, true);
-                //part.state = 'removed';
-            }
-        }
-        this.needsUpdate = true;
-    };
+  Track.prototype.reset = function() {
+    var id, part
+    this.song = null
+    // fixing issue #5
+    if (this.audio) {
+      this.audio.setSong(null)
+    }
+    for (id in this.partsById) {
+      if (this.partsById.hasOwnProperty(id)) {
+        part = this.partsById[id]
+        // don't reset from track, reset from song only
+        part.reset(false, true)
+        //part.state = 'removed';
+      }
+    }
+    this.needsUpdate = true
+  }
 
+  // find event utils
 
-    // find event utils
+  Track.prototype.findEvent = function(pattern) {
+    return findEvent(this, pattern)
+  }
 
-    Track.prototype.findEvent = function(pattern){
-        return findEvent(this, pattern);
-    };
+  Track.prototype.findNote = function(pattern) {
+    return findNote(this, pattern)
+  }
 
+  Track.prototype.getStats = function(pattern) {
+    return getStats(this, pattern)
+  }
 
-    Track.prototype.findNote = function(pattern){
-        return findNote(this, pattern);
-    };
+  Track.prototype.update = function() {
+    //console.log('track update');
+    //@TODO: do we need events and notes in a track?
 
+    this.parts = []
+    this.notes = []
+    this.events = []
 
-    Track.prototype.getStats = function(pattern){
-        return getStats(this, pattern);
-    };
+    var i, id, part, event, events, note
+    for (id in this.partsById) {
+      if (this.partsById.hasOwnProperty(id)) {
+        part = this.partsById[id]
 
-
-    Track.prototype.update = function(){
-        //console.log('track update');
-        //@TODO: do we need events and notes in a track?
-
-        this.parts = [];
-        this.notes = [];
-        this.events = [];
-
-        var i, id, part, event, events, note;
-        for(id in this.partsById){
-            if(this.partsById.hasOwnProperty(id)){
-                part = this.partsById[id];
-
-                if(part.needsUpdate === true){
-                    //console.log(part);
-                    part.update();
-                }
-
-                //console.log(part.events.length, part.keepWhenEmpty);
-
-                if(part.events.length === 0 && part.keepWhenEmpty === false){
-                    this.removePart(part);
-                }
-
-                if(part.state === 'new' && this.song !== undefined){
-                    events = part.events;
-                    for(i = events.length - 1; i >= 0; i--){
-                        event = events[i];
-                        event.song = this.song;
-                    }
-                }
-
-                if(part.state !== 'removed'){
-                    this.parts.push(part);
-                    this.notes = this.notes.concat(part.notes);
-                    this.events = this.events.concat(part.events);
-                }
-            }
+        if (part.needsUpdate === true) {
+          //console.log(part);
+          part.update()
         }
 
-        this.parts.sort(function(a,b){
-            return a.ticks - b.ticks;
-        });
+        //console.log(part.events.length, part.keepWhenEmpty);
 
-        this.notes.sort(function(a,b){
-            return a.ticks - b.ticks;
-        });
-
-        this.events.sort(function(a,b){
-            return a.ticks - b.ticks;
-        });
-
-
-        this.numEvents = this.events.length;
-        this.numNotes = this.notes.length;
-        this.numParts = this.parts.length;
-
-        for(i = this.numEvents - 1; i >= 0; i--){
-            event = this.events[i];
-            this.eventsById[event.id] = event;
+        if (part.events.length === 0 && part.keepWhenEmpty === false) {
+          this.removePart(part)
         }
 
-        for(i = this.numNotes - 1; i >= 0; i--){
-            note = this.notes[i];
-            this.notesById[note.id] = note;
+        if (part.state === 'new' && this.song !== undefined) {
+          events = part.events
+          for (i = events.length - 1; i >= 0; i--) {
+            event = events[i]
+            event.song = this.song
+          }
         }
 
-        this.needsUpdate = false;
-    };
-
-
-    Track.prototype.getIndex = function(){
-        var index = -1,
-            tracks = this.song.tracks,
-            numTracks = tracks.length,
-            track, i;
-
-        if(numTracks > 0){
-
-            for(i = 0; i < numTracks; i++){
-                track = tracks[i];
-                if(track.id === this.id){
-                    index = i;
-                    break;
-                }
-            }
+        if (part.state !== 'removed') {
+          this.parts.push(part)
+          this.notes = this.notes.concat(part.notes)
+          this.events = this.events.concat(part.events)
         }
-        return index;
-    };
+      }
+    }
 
+    this.parts.sort(function(a, b) {
+      return a.ticks - b.ticks
+    })
 
-    /*
+    this.notes.sort(function(a, b) {
+      return a.ticks - b.ticks
+    })
+
+    this.events.sort(function(a, b) {
+      return a.ticks - b.ticks
+    })
+
+    this.numEvents = this.events.length
+    this.numNotes = this.notes.length
+    this.numParts = this.parts.length
+
+    for (i = this.numEvents - 1; i >= 0; i--) {
+      event = this.events[i]
+      this.eventsById[event.id] = event
+    }
+
+    for (i = this.numNotes - 1; i >= 0; i--) {
+      note = this.notes[i]
+      this.notesById[note.id] = note
+    }
+
+    this.needsUpdate = false
+  }
+
+  Track.prototype.getIndex = function() {
+    var index = -1,
+      tracks = this.song.tracks,
+      numTracks = tracks.length,
+      track,
+      i
+
+    if (numTracks > 0) {
+      for (i = 0; i < numTracks; i++) {
+        track = tracks[i]
+        if (track.id === this.id) {
+          index = i
+          break
+        }
+      }
+    }
+    return index
+  }
+
+  /*
 
         Track:
          input
@@ -19934,12 +19869,12 @@ if (typeof module !== "undefined" && module !== null) {
 
     */
 
-    Track.prototype.addEffect = function(effect, position){
-        if(!effect){
-            return;
-        }
-        // //effect.setInput(this.input);
-/*
+  Track.prototype.addEffect = function(effect, position) {
+    if (!effect) {
+      return
+    }
+    // //effect.setInput(this.input);
+    /*
         //this.input.connect(effect.node);
         this.input.disconnect(0);
         try{
@@ -19954,30 +19889,29 @@ if (typeof module !== "undefined" && module !== null) {
 return;
 */
 
-        //console.log(effect);
+    //console.log(effect);
 
-        this.effects[effect.id] = effect;
-        this.numEffects++;
+    this.effects[effect.id] = effect
+    this.numEffects++
 
-        if(this.lastEffect !== undefined){
-            // disconnect output from panner
-           this.lastEffect.disconnect(0);
-            // try{
-            //     this.input.disconnect(1);
-            // }catch(e){
-            //     console.log(e);
-            // }
-            // connect output to input of new effect
-            effect.setInput(this.lastEffect);
-        }
-        // connect new effect to panner
-        effect.output.connect(this.panner.node);
+    if (this.lastEffect !== undefined) {
+      // disconnect output from panner
+      this.lastEffect.disconnect(0)
+      // try{
+      //     this.input.disconnect(1);
+      // }catch(e){
+      //     console.log(e);
+      // }
+      // connect output to input of new effect
+      effect.setInput(this.lastEffect)
+    }
+    // connect new effect to panner
+    effect.output.connect(this.panner.node)
 
-        // remember the last effect in case we want to add another effect
-        this.lastEffect = effect.output;
+    // remember the last effect in case we want to add another effect
+    this.lastEffect = effect.output
 
-
-/*
+    /*
         if(position !== undefined && isNaN(position) === false){
             this.setEffectPosition(position);
         }else{
@@ -19985,127 +19919,128 @@ return;
         }
         this.numEffects++;
 */
-    };
+  }
 
+  Track.prototype.removeEffect = function(effect) {
+    if (effect === false) {
+      return
+    }
+    delete this.effects[effect.id]
+    this.numEffects--
+  }
 
-    Track.prototype.removeEffect = function(effect){
-        if(effect === false){
-            return;
-        }
-        delete this.effects[effect.id];
-        this.numEffects--;
-    };
+  Track.prototype.setEffectPosition = function(effect, position) {
+    var i,
+      fx,
+      maxi = this.numEffects - 1
 
-
-    Track.prototype.setEffectPosition = function(effect, position){
-        var i, fx, maxi = this.numEffects - 1;
-
-        if(position < 0 || position > maxi){
-            return;
-        }
-
-        effect.position = position;
-        for(i = 0; i < maxi - 1; i++){
-            fx = this.effects[i];
-            if(fx.position >= position && fx !== effect){
-                fx.position += 1;
-            }
-        }
-    };
-
-
-    Track.prototype.setSolo = function(flag){
-        if(flag === undefined){
-            flag = !this.solo;
-        }
-        this.mute = false;
-        this.solo = flag;
-        if(this.song){
-            this.song.setTrackSolo(this, flag);
-        }
-    };
-
-
-    Track.prototype.setPartSolo = function(soloPart, flag){
-        var i, part;
-        for(i = this.numParts - 1; i >=0 ; i--){
-            part = this.parts[i];
-            if(flag === true){
-                part.mute = part === soloPart ? !flag : flag;
-            }else if(flag === false){
-                part.mute = false;
-            }
-            part.solo = part === soloPart ? flag : false;
-            //console.log(soloPart.id, soloPart.mute, part.id, part.mute);
-        }
-    };
-
-
-    Track.prototype.setVolume = function(value){
-        if(isNaN(value)){
-            if(sequencer.debug >= 1){
-                console.error('please pass a number');
-            }
-        }else if(value < 0 || value > 1){
-            if(sequencer.debug >= 1){
-                console.error('please pass a float between 0 and 1');
-            }
-        }else{
-            this.volume = value;
-            this.output.gain.value = this.volume;
-        }
-    };
-
-
-    Track.prototype.getVolume = function(){
-        return this.volume;
-    };
-
-    Track.prototype.setPanning = function(value){
-        this.panner.setPosition(value);
-    };
-
-
-    Track.prototype.connect = function(node){
-        //this.panner.node.connect(node);
-        this.output.connect(node);
-    };
-
-
-    Track.prototype.disconnect = function(node){
-        //this.panner.node.disconnect(node);
-        this.output.disconnect(0);
-    };
-
-
-    function getDefaultInstrumentConfig(track){
-        var config;
-        if(track.song !== undefined && track.song.defaultInstrument !== undefined ){
-            config = findItem(track.song.defaultInstrument, sequencer.storage.instruments);
-            //console.log('default instrument song', track.song.defaultInstrument);
-        }
-        if(config === false || config === undefined){
-            config = findItem(sequencer.defaultInstrument, sequencer.storage.instruments);
-            //console.log('default instrument sequencer', sequencer.defaultInstrument, config);
-            //console.log(sequencer.storage.instruments.heartbeat.sinewave);
-        }
-        return config;
+    if (position < 0 || position > maxi) {
+      return
     }
 
+    effect.position = position
+    for (i = 0; i < maxi - 1; i++) {
+      fx = this.effects[i]
+      if (fx.position >= position && fx !== effect) {
+        fx.position += 1
+      }
+    }
+  }
 
-    Track.prototype.setInstrument = function(arg){
-        //console.log('Track.setInstrument()', arg, this.name);
-        if(arg === '' || arg === undefined || arg === false){
-            arg = getDefaultInstrumentConfig(this);
-            //console.log('default', arg);
-        }
-        var instrument = createInstrument(arg);
+  Track.prototype.setSolo = function(flag) {
+    if (flag === undefined) {
+      flag = !this.solo
+    }
+    this.mute = false
+    this.solo = flag
+    if (this.song) {
+      this.song.setTrackSolo(this, flag)
+    }
+  }
 
-        if(instrument === false){
-            instrument = createInstrument(getDefaultInstrumentConfig(this));
-        }
+  Track.prototype.setPartSolo = function(soloPart, flag) {
+    var i, part
+    for (i = this.numParts - 1; i >= 0; i--) {
+      part = this.parts[i]
+      if (flag === true) {
+        part.mute = part === soloPart ? !flag : flag
+      } else if (flag === false) {
+        part.mute = false
+      }
+      part.solo = part === soloPart ? flag : false
+      //console.log(soloPart.id, soloPart.mute, part.id, part.mute);
+    }
+  }
 
-/*
+  Track.prototype.setVolume = function(value) {
+    if (isNaN(value)) {
+      if (sequencer.debug >= 1) {
+        console.error('please pass a number')
+      }
+    } else if (value < 0 || value > 1) {
+      if (sequencer.debug >= 1) {
+        console.error('please pass a float between 0 and 1')
+      }
+    } else {
+      this.volume = value
+      this.output.gain.value = this.volume
+    }
+  }
+
+  Track.prototype.getVolume = function() {
+    return this.volume
+  }
+
+  Track.prototype.setPanning = function(value) {
+    this.panner.setPosition(value)
+  }
+
+  Track.prototype.connect = function(node) {
+    //this.panner.node.connect(node);
+    this.output.connect(node)
+  }
+
+  Track.prototype.disconnect = function(node) {
+    //this.panner.node.disconnect(node);
+    this.output.disconnect(0)
+  }
+
+  function getDefaultInstrumentConfig(track) {
+    var config
+    if (
+      track.song !== undefined &&
+      track.song.defaultInstrument !== undefined
+    ) {
+      config = findItem(
+        track.song.defaultInstrument,
+        sequencer.storage.instruments
+      )
+      //console.log('default instrument song', track.song.defaultInstrument);
+    }
+    if (config === false || config === undefined) {
+      config = findItem(
+        sequencer.defaultInstrument,
+        sequencer.storage.instruments
+      )
+      //console.log('default instrument sequencer', sequencer.defaultInstrument, config);
+      //console.log(sequencer.storage.instruments.heartbeat.sinewave);
+    }
+    return config
+  }
+
+  Track.prototype.setInstrument = function(arg) {
+    //console.log('Track.setInstrument()', arg, this.name);
+    if (arg === '' || arg === undefined || arg === false) {
+      arg = getDefaultInstrumentConfig(this)
+      //console.log('default', arg);
+    }
+    var instrument = createInstrument(arg)
+
+    if (instrument === false) {
+      instrument = createInstrument(getDefaultInstrumentConfig(this))
+    }
+
+    /*
         var instrument;
 
         if(arg === '' || arg === undefined || arg === false){
@@ -20115,150 +20050,146 @@ return;
         }
 
 */
-        instrument.track = this;
-        // stop possible scheduled notes by the previous instrument
-        if(this.instrument){
-            this.instrument.allNotesOff();
+    instrument.track = this
+    // stop possible scheduled notes by the previous instrument
+    if (this.instrument) {
+      this.instrument.allNotesOff()
+    }
+    this.instrument = instrument
+    this.instrumentId = instrument.name
+    if (this.song) {
+      this.instrument.song = this.song
+    }
+  }
+
+  Track.prototype.setMidiInput = function(id, flag) {
+    var input,
+      i,
+      midiInputs = this.midiInputs,
+      availableInputs
+
+    //console.log(id, flag, this.song.midiInputs[id]);
+
+    flag = flag === undefined ? true : flag
+
+    if (id === 'all') {
+      availableInputs =
+        this.song !== undefined ? this.song.midiInputs : sequencer.midiInputs
+      objectForEach(availableInputs, function(value, key) {
+        if (flag === true) {
+          midiInputs[key] = value
+        } else {
+          delete midiInputs[key]
         }
-        this.instrument = instrument;
-        this.instrumentId = instrument.name;
-        if(this.song){
-            this.instrument.song = this.song;
-        }
-    };
+      })
+      //console.log(sequencer.midiInputs, this.midiInputs, midiInputs);
+      return
+    }
 
+    input = this.song.midiInputs[id]
+    //console.log(input, id);
+    if (input === undefined) {
+      return
+    }
+    //this.midiInputs[id] = flag === true ? input : false;
+    if (flag) {
+      this.midiInputs[id] = input
+    } else {
+      delete this.midiInputs[id]
+    }
+  }
 
-    Track.prototype.setMidiInput = function(id, flag){
-        var input, i,
-            midiInputs = this.midiInputs,
-            availableInputs;
+  Track.prototype.setMidiOutput = function(id, flag) {
+    // a track can, unlike Cubase, send its events to more than one midi output
+    flag = flag === undefined ? true : flag
 
-        //console.log(id, flag, this.song.midiInputs[id]);
+    //console.log(id, flag, this.song.midiOutputs);
 
-        flag = flag === undefined ? true : flag;
+    var output = this.song.midiOutputs[id],
+      me = this
 
-        if(id === 'all'){
-            availableInputs = this.song !== undefined ? this.song.midiInputs : sequencer.midiInputs;
-            objectForEach(availableInputs, function(value, key){
-                if(flag === true){
-                    midiInputs[key] = value;
-                }else{
-                    delete midiInputs[key];
-                }
-            });
-            //console.log(sequencer.midiInputs, this.midiInputs, midiInputs);
-            return;
-        }
+    if (output === undefined) {
+      return
+    }
 
-        input = this.song.midiInputs[id];
-        //console.log(input, id);
-        if(input === undefined){
-            return;
-        }
-        //this.midiInputs[id] = flag === true ? input : false;
-        if(flag){
-            this.midiInputs[id] = input;
-        }else{
-            delete this.midiInputs[id];
-        }
-    };
+    // stop the internal instrument if a midi output has been chosen -> particulary necessary while the song is playing
+    if (flag === true) {
+      this.instrument.allNotesOff()
+    }
 
+    //this.midiOutputs[id] = flag === true ? output : false;
+    if (flag) {
+      this.midiOutputs[id] = output
+    } else {
+      delete this.midiOutputs[id]
+    }
 
-    Track.prototype.setMidiOutput = function(id, flag){
-        // a track can, unlike Cubase, send its events to more than one midi output
-        flag = flag === undefined ? true : flag;
+    this.routeToMidiOut = false
 
-        //console.log(id, flag, this.song.midiOutputs);
+    //console.log(this.midiOutputs[id]);
+    objectForEach(this.midiOutputs, function(value, key) {
+      //console.log(value, key);
+      if (value !== false) {
+        me.routeToMidiOut = true
+      }
+    })
+    //console.log(output, id, this.routeToMidiOut);
+  }
 
-        var output = this.song.midiOutputs[id],
-            me = this;
+  Track.prototype.prepareForRecording = function(recordId, callback) {
+    //console.log('prepare', this.recordEnabled);
+    if (this.recordEnabled !== 'midi' && this.recordEnabled !== 'audio') {
+      return
+    }
+    this.recordPart = sequencer.createPart()
+    this.addPart(this.recordPart)
+    //console.log(this.recordPart.needsUpdate);
+    this.recordingNotes = {}
+    this.recordId = recordId
 
-        if(output === undefined){
-            return;
-        }
+    if (this.recordEnabled === 'audio') {
+      if (this.audio === undefined) {
+        this.audio = createAudioTrack(this)
+      }
+      this.audio.prepareForRecording(recordId, callback)
+    }
+    //console.log(this.recordEnabled);
+  }
 
+  Track.prototype.stopRecording = function(recordId, callback) {
+    //console.log(recordId, this.recordId);
+    if (this.recordId !== recordId) {
+      return
+    }
 
-        // stop the internal instrument if a midi output has been chosen -> particulary necessary while the song is playing
-        if(flag === true){
-            this.instrument.allNotesOff();
-        }
+    this.recordingNotes = {}
+    if (this.autoQuantize || this.song.autoQuantize) {
+      if (debug >= 1) {
+        console.log('performing auto quantize')
+      }
+      this.quantizeRecording()
+    }
 
-        //this.midiOutputs[id] = flag === true ? output : false;
-        if(flag){
-            this.midiOutputs[id] = output;
-        }else{
-            delete this.midiOutputs[id];
-        }
+    if (this.recordEnabled === 'midi') {
+      this.recordPart.update()
+      callback(this.recordPart.events)
+    } else if (this.recordEnabled === 'audio') {
+      var scope = this
+      this.audio.stopRecording(function(recording) {
+        var event = sequencer.createAudioEvent({
+          ticks: scope.song.recordTimestampTicks,
+          buffer: recording.audioBuffer,
+          sampleId: recording.id
+        })
 
-        this.routeToMidiOut = false;
+        scope.recordPart.addEvent(event)
+        scope.recordPart.update()
+        callback([event])
+      })
+    }
+  }
 
-        //console.log(this.midiOutputs[id]);
-        objectForEach(this.midiOutputs, function(value, key){
-            //console.log(value, key);
-            if(value !== false){
-                me.routeToMidiOut = true;
-            }
-        });
-        //console.log(output, id, this.routeToMidiOut);
-    };
-
-
-    Track.prototype.prepareForRecording = function(recordId, callback){
-        //console.log('prepare', this.recordEnabled);
-        if(this.recordEnabled !== 'midi' && this.recordEnabled !== 'audio'){
-            return;
-        }
-        this.recordPart = sequencer.createPart();
-        this.addPart(this.recordPart);
-        //console.log(this.recordPart.needsUpdate);
-        this.recordingNotes = {};
-        this.recordId = recordId;
-
-        if(this.recordEnabled === 'audio'){
-            if(this.audio === undefined){
-                this.audio = createAudioTrack(this);
-            }
-            this.audio.prepareForRecording(recordId, callback);
-        }
-        //console.log(this.recordEnabled);
-    };
-
-
-    Track.prototype.stopRecording = function(recordId, callback){
-        //console.log(recordId, this.recordId);
-        if(this.recordId !== recordId){
-            return;
-        }
-
-        this.recordingNotes = {};
-        if(this.autoQuantize || this.song.autoQuantize){
-            if(debug >= 1){
-                console.log('performing auto quantize');
-            }
-            this.quantizeRecording();
-        }
-
-        if(this.recordEnabled === 'midi'){
-            this.recordPart.update();
-            callback(this.recordPart.events);
-        }else if(this.recordEnabled === 'audio'){
-            var scope = this;
-            this.audio.stopRecording(function(recording){
-
-                var event = sequencer.createAudioEvent({
-                    ticks: scope.song.recordTimestampTicks,
-                    buffer: recording.audioBuffer,
-                    sampleId: recording.id,
-                });
-
-                scope.recordPart.addEvent(event);
-                scope.recordPart.update();
-                callback([event]);
-            });
-        }
-    };
-
-/*
+  /*
     Track.prototype.undoRecording = function(recordId){
         if(this.recordId !== recordId){
             return;
@@ -20267,147 +20198,147 @@ return;
     };
 */
 
-    Track.prototype.undoRecording = function(data){
-        var type = typeString(data);
-        if(type === 'string'){
-            if(this.recordId === data){
-                this.removePart(this.recordPart);
-            }
-        }else if(type === 'array'){
-            //console.log(data);
-            this.removeEvents(data);
-        }
-    };
+  Track.prototype.undoRecording = function(data) {
+    var type = typeString(data)
+    if (type === 'string') {
+      if (this.recordId === data) {
+        this.removePart(this.recordPart)
+      }
+    } else if (type === 'array') {
+      //console.log(data);
+      this.removeEvents(data)
+    }
+  }
 
+  Track.prototype.getAudioRecordingData = function(recordId) {
+    if (this.audio === undefined) {
+      return
+    }
+    if (recordId === undefined) {
+      if (sequencer.debug >= sequencer.WARN) {
+        console.warn('please provide a recording id')
+      }
+      return false
+    }
+    return sequencer.storage.audio.recordings[recordId]
+  }
 
-    Track.prototype.getAudioRecordingData = function(recordId){
-        if(this.audio === undefined){
-            return;
-        }
-        if(recordId === undefined){
-            if(sequencer.debug >= sequencer.WARN){
-                console.warn('please provide a recording id');
-            }
-            return false;
-        }
-        return sequencer.storage.audio.recordings[recordId];
-    };
+  Track.prototype.encodeAudioRecording = function(recordId, type, bitrate) {
+    if (this.audio === undefined) {
+      return
+    }
+    return encodeRecording.apply(null, arguments)
+  }
 
+  Track.prototype.setAudioRecordingLatency = function(
+    recordId,
+    value,
+    callback
+  ) {
+    if (this.audio !== undefined) {
+      //console.log(recordId, sequencer.storage.audio.recordings);
+      this.audio.setAudioRecordingLatency(recordId, value, function(recording) {
+        // update all audio events in this song that use this recording
 
-    Track.prototype.encodeAudioRecording = function(recordId, type, bitrate){
-        if(this.audio === undefined){
-            return;
-        }
-        return encodeRecording.apply(null, arguments);
-    };
+        var i,
+          event,
+          sampleId,
+          audioEvents = this.song.audioEvents
 
-
-    Track.prototype.setAudioRecordingLatency = function(recordId, value, callback){
-        if(this.audio !== undefined){
-            //console.log(recordId, sequencer.storage.audio.recordings);
-            this.audio.setAudioRecordingLatency(recordId, value, function(recording){
-                // update all audio events in this song that use this recording
-
-                var i, event, sampleId,
-                    audioEvents = this.song.audioEvents;
-
-                for(i = audioEvents.length - 1; i >= 0; i--){
-                    event = audioEvents[i];
-                    sampleId = event.sampleId;
-                    if(sampleId === undefined){
-                        continue;
-                    }
-                    if(recordId === sampleId){
-                        event.buffer = recording.audioBuffer;
-                    }
-                }
-
-                if(callback !== undefined){
-                    callback();
-                }
-            });
-        }
-    };
-
-
-    Track.prototype.quantizeRecording = function(value){
-        value = value || this.quantizeValue;
-        return sequencer.quantize(this.recordPart.events, value, this.song.ppq);
-    };
-
-
-    // non-mandatory arguments: quantize value, history object
-    Track.prototype.quantize = function(){
-        var i, arg, type,
-        args = slice.call(arguments),
-        numArgs = args.length,
-        value,
-        historyObject = {};
-
-        //console.log(arguments);
-
-        for(i = 0; i < numArgs; i++){
-            arg = args[i];
-            type = typeString(arg);
-            //console.log(arg, type);
-            if(type === 'string' || type === 'number'){
-                // overrule the quantize value of this track with this value
-                value = arg;
-            }else if(type === 'object'){
-                historyObject = arg;
-            }
+        for (i = audioEvents.length - 1; i >= 0; i--) {
+          event = audioEvents[i]
+          sampleId = event.sampleId
+          if (sampleId === undefined) {
+            continue
+          }
+          if (recordId === sampleId) {
+            event.buffer = recording.audioBuffer
+          }
         }
 
-        // no value passed as arguments, use the quantize value of this track
-        if(value === undefined){
-            value = this.quantizeValue;
+        if (callback !== undefined) {
+          callback()
         }
+      })
+    }
+  }
 
-        //console.log(value, history);
-        return sequencer.quantize(this.events, value, this.song.ppq, history); // sequencer.quantize is defined in quantize_fixed-length.js
-    };
+  Track.prototype.quantizeRecording = function(value) {
+    value = value || this.quantizeValue
+    return sequencer.quantize(this.recordPart.events, value, this.song.ppq)
+  }
 
+  // non-mandatory arguments: quantize value, history object
+  Track.prototype.quantize = function() {
+    var i,
+      arg,
+      type,
+      args = slice.call(arguments),
+      numArgs = args.length,
+      value,
+      historyObject = {}
 
-    Track.prototype.undoQuantize = function(history){
-        if(history === undefined){
-            if(sequencer.debug >= 2){
-                console.warn('please pass a quantize history object');
-            }
-            return;
-        }
+    //console.log(arguments);
 
-        var events = history.tracks[this.id].quantizedEvents,
-            numEvents = events.length,
-            i, event;
+    for (i = 0; i < numArgs; i++) {
+      arg = args[i]
+      type = typeString(arg)
+      //console.log(arg, type);
+      if (type === 'string' || type === 'number') {
+        // overrule the quantize value of this track with this value
+        value = arg
+      } else if (type === 'object') {
+        historyObject = arg
+      }
+    }
 
-        for(i = 0; i < numEvents; i++){
-            event = events[i];
-            event.ticks = history.events[event.id].ticks;
-            //console.log(event.ticks, event.type);
-        }
-    };
+    // no value passed as arguments, use the quantize value of this track
+    if (value === undefined) {
+      value = this.quantizeValue
+    }
 
+    //console.log(value, history);
+    return sequencer.quantize(this.events, value, this.song.ppq, history) // sequencer.quantize is defined in quantize_fixed-length.js
+  }
 
-    Track.prototype.addMidiEventListener = function(){
-        return addMidiEventListener(arguments, this);
-    };
+  Track.prototype.undoQuantize = function(history) {
+    if (history === undefined) {
+      if (sequencer.debug >= 2) {
+        console.warn('please pass a quantize history object')
+      }
+      return
+    }
 
+    var events = history.tracks[this.id].quantizedEvents,
+      numEvents = events.length,
+      i,
+      event
 
-    Track.prototype.removeMidiEventListener = function(id){
-        removeMidiEventListener(id, this);
-    };
+    for (i = 0; i < numEvents; i++) {
+      event = events[i]
+      event.ticks = history.events[event.id].ticks
+      //console.log(event.ticks, event.type);
+    }
+  }
 
+  Track.prototype.addMidiEventListener = function() {
+    return addMidiEventListener(arguments, this)
+  }
 
-    Track.prototype.allNotesOff = function(id){
-        if(this.audio){
-            this.audio.allNotesOff();
-        }
-        if(this.instrument){
-            this.instrument.allNotesOff();
-        }
-    };
+  Track.prototype.removeMidiEventListener = function(id) {
+    removeMidiEventListener(id, this)
+  }
 
-/*
+  Track.prototype.allNotesOff = function(id) {
+    if (this.audio) {
+      this.audio.allNotesOff()
+    }
+    if (this.instrument) {
+      this.instrument.allNotesOff()
+    }
+  }
+
+  /*
     Track.prototype.addReverb = function(id, amount){
         var reverb = sequencer.getReverb(id);
         if(reverb !== false){
@@ -20426,35 +20357,109 @@ return;
     };
 */
 
-    sequencer.protectedScope.Track = Track;
+  sequencer.protectedScope.Track = Track
 
-    sequencer.createTrack = function(name,type,song){
-        return new Track(name,type,song);
-    };
+  sequencer.createTrack = function(name, type, song) {
+    return new Track(name, type, song)
+  }
+
+  sequencer.protectedScope.addInitMethod(function() {
+    // get the protected scope with all added methods
+    var protectedScope = sequencer.protectedScope
+
+    getStats = sequencer.getStats
+    findEvent = sequencer.findEvent
+    findNote = sequencer.findNote
+    createPart = sequencer.createPart
+    createMidiEvent = sequencer.createMidiEvent
+    createMidiNote = sequencer.createMidiNote
+    createInstrument = sequencer.createInstrument
+    createPanner = sequencer.createPanner
+    encodeRecording = sequencer.protectedScope.encodeRecording
+
+    context = protectedScope.context
+    findItem = protectedScope.findItem
+    addMidiEventListener = protectedScope.addMidiEventListener
+    removeMidiEventListener = protectedScope.removeMidiEventListener
+    createAudioTrack = sequencer.protectedScope.createAudioTrack
+    checkPosition = protectedScope.checkPosition
+    objectForEach = protectedScope.objectForEach
+    typeString = protectedScope.typeString
+    copyName = protectedScope.copyName
+  })
+})()
+(function(){
+
+    'use strict';
+
+    var
+        // satisfy jslint
+        sequencer = window.sequencer,
+        Pitchshift = window.Pitchshift,
+        console = window.console,
+
+        context,
+        fftFrameSize = 2048,
+        shifter;
+
+    function init(){
+        if(window.Pitchshift){
+            shifter = new Pitchshift(fftFrameSize, context.sampleRate, 'FFT');
+        }
+    }
+
+
+    function transpose(inputBuffer, semitones, cb){
+        if(shifter === undefined){
+            console.log('include Kiev II');
+            return;
+        }
+        if(semitones === 0){
+            if(cb){
+                //console.log(inputBuffer, semitones)
+                cb(inputBuffer);
+                return;
+            }
+        }
+
+        var numChannels = inputBuffer.numberOfChannels,
+            c, input, length, output, outputs = [], shiftValue, i,
+            outputBuffer;
+
+        //console.log(inputBuffer);
+
+        for(c = 0; c < numChannels; c++){
+            input =  inputBuffer.getChannelData(c);
+            length = input.length;
+            output = new Float32Array(length);
+            shiftValue = Math.pow(1.0595, semitones);
+            //shiftValue = 1.01;
+            shifter.process(shiftValue, input.length, 4, input);
+            //shifter.process(shiftValue, input.length, 8, input);
+            for(i = 0; i < length; i++){
+                output[i] = shifter.outdata[i];
+            }
+            outputs[c] = output;
+        }
+
+        outputBuffer = context.createBuffer(
+            numChannels,
+            length,
+            inputBuffer.sampleRate
+        );
+
+        for(c = 0; c < numChannels; c++){
+            outputBuffer.getChannelData(c).set(outputs[c]);
+        }
+
+        cb(outputBuffer);
+    }
+
+    sequencer.protectedScope.transpose = transpose;
 
     sequencer.protectedScope.addInitMethod(function(){
-        // get the protected scope with all added methods
-        var protectedScope = sequencer.protectedScope;
-
-        getStats = sequencer.getStats;
-        findEvent = sequencer.findEvent;
-        findNote = sequencer.findNote;
-        createPart = sequencer.createPart;
-        createMidiEvent = sequencer.createMidiEvent;
-        createMidiNote = sequencer.createMidiNote;
-        createInstrument = sequencer.createInstrument;
-        createPanner = sequencer.createPanner;
-        encodeRecording = sequencer.protectedScope.encodeRecording;
-
-        context = protectedScope.context;
-        findItem = protectedScope.findItem;
-        addMidiEventListener = protectedScope.addMidiEventListener;
-        removeMidiEventListener = protectedScope.removeMidiEventListener;
-        createAudioTrack = sequencer.protectedScope.createAudioTrack;
-        checkPosition = protectedScope.checkPosition;
-        objectForEach = protectedScope.objectForEach;
-        typeString = protectedScope.typeString;
-        copyName = protectedScope.copyName;
+        context = sequencer.protectedScope.context;
+        init();
     });
 
 }());(function(){
@@ -21806,170 +21811,6 @@ return;
     sequencer.getMicrosecondsFromBPM = getMicrosecondsFromBPM;
     sequencer.getWaveformImageUrlFromBuffer = getWaveformImageUrlFromBuffer;
 }());(function(){
-
-    'use strict';
-
-    var
-        // satisfy jslint
-        sequencer = window.sequencer,
-        console = window.console,
-
-        copyObject, // defined in util.js
-
-        floor = Math.floor,
-        round = Math.round,
-
-    	noteFractions =
-    	{
-	        '1': 1 * 4, // whole note
-	        '1.': 1.5 * 4,
-	        '1..': 1.75 * 4,
-	        '1...': 1.875 * 4,
-	        '1T': 2/3 * 4,
-
-	        '2': 1 * 2, // half note
-	        '2.': 1.5 * 2,
-	        '2..': 1.75 * 2,
-	        '2...': 1.875 * 2,
-	        '2T': 2/3 * 2,
-
-	        '4': 1 * 1, // quarter note (beat)
-	        '4.': 1.5 * 1,
-	        '4..': 1.75 * 1,
-	        '4...': 1.875 * 1,
-	        '4T': 2/3 * 1,
-
-	        '8': 1 * 1/2, // eighth note
-	        '8.': 1.5 * 1/2,
-	        '8..': 1.75 * 1/2,
-	        '8...': 1.875 * 1/2,
-	        '8T':  2/3 * 1/2,
-
-	        '16': 1 * 1/4, // sixteenth note
-	        '16.': 1.5 * 1/4,
-	        '16..': 1.75 * 1/4,
-	        '16...': 1.875 * 1/4,
-	        '16T': 2/3 * 1/4,
-
-	        '32': 1 * 1/8,
-	        '32.': 1.5 * 1/8,
-	        '32..': 1.75 * 1/8,
-	        '32...': 1.875 * 1/8,
-	        '32T': 2/3 * 1/8,
-
-	        '64': 1 * 1/16,
-	        '64.': 1.5 * 1/16,
-	        '64..': 1.75 * 1/16,
-	        '64...': 1.875 * 1/16,
-	        '64T': 2/3 * 1/16,
-
-	        '128': 1 * 1/32,
-	        '128.': 1.5 * 1/32,
-	        '128..': 1.75 * 1/32,
-	        '128...': 1.875 * 1/32,
-	        '128T': 2/3 * 1/32
-	    };
-
-
-
-
-    function quantize(events, value, ppq, history){
-        var track;
-
-        value = '' + value;
-        value = value.toUpperCase();
-        ppq = ppq || sequencer.defaultPPQ;
-        //console.log('quantize', value);
-        if(value === 0){// pass by
-            return {};
-        }
-        var i, event, ticks, quantized, diff, quantizeTicks,
-           quantizeHistory = history || {};
-
-        if(quantizeHistory.events === undefined){
-            quantizeHistory.events = {};
-        }
-
-        if(quantizeHistory.tracks === undefined){
-            quantizeHistory.tracks = {};
-        }
-
-        //console.log(events, value, ppq, history);
-
-        if(value.indexOf('TICKS') !== -1){
-            quantizeTicks = parseInt(value.replace(/TICKS/,''), 10);
-        }else{
-            quantizeTicks = noteFractions[value] * ppq;
-        }
-
-        //console.log('quantize', quantizeTicks);
-
-        if(quantizeTicks === undefined){
-            if(sequencer.debug){
-                console.warn('invalid quantize value');
-            }
-            return;
-        }
-
-        for(i = events.length - 1; i >= 0; i--){
-            event = events[i];
-
-            quantizeHistory.events[event.id] = {
-                event: event,
-                ticks: event.ticks
-            };
-
-            if(event.type !== 128){
-                ticks = event.ticks;
-                quantized = round(ticks/quantizeTicks) * quantizeTicks;
-                //console.log(ticks, quantized, '[', ppq, ']');
-                diff = quantized - ticks;
-                event.ticks = quantized;
-                event.state = 'changed';
-                event.part.needsUpdate = true;
-                event.track.needsUpdate = true;
-
-                // add quantize history per track as well
-                track = event.track;
-                if(quantizeHistory.tracks[track.id] === undefined){
-                    quantizeHistory.tracks[track.id] = {
-                        track: track,
-                        quantizedEvents: []
-                    };
-                }
-                quantizeHistory.tracks[track.id].quantizedEvents.push(event);
-
-                // quantize the note off event
-                if(event.midiNote !== undefined){
-                    event.midiNote.noteOff.ticks += diff;
-                    event.midiNote.noteOff.state = 'changed';
-                    event.midiNote.state = 'changed';
-                    quantizeHistory.tracks[track.id].quantizedEvents.push(event.midiNote.noteOff);
-                }
-            }
-        }
-
-        return quantizeHistory;//copyObject(quantizeHistory);
-    }
-
-
-    function fixedLength(events, value, ppq, history){
-        var fixedLengthHistory = history || {};
-
-    }
-
-
-    sequencer.protectedScope.addInitMethod(function(){
-        copyObject = sequencer.protectedScope.copyObject;
-    });
-
-    sequencer.quantize = quantize;
-    sequencer.fixedLength = fixedLength;
-
-}());
-
-
-(function(){
 
     'use strict';
 

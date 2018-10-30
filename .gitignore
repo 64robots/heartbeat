@@ -6,6 +6,7 @@ examples/index.html
 
 fonts/css?family=Open+Sans:400,700
 
+node_modules
 
 src/danguer/
 src/jasmid/
