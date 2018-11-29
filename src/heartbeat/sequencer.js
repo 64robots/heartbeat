@@ -34,6 +34,16 @@
     return activeSongs
   }
 
+  function removeProperties(obj) {
+    var i
+    for (i in obj) {
+      if (obj.hasOwnProperty(i)) {
+        //console.log(i);
+        obj[i] = null
+      }
+    }
+  }
+
   sequencer.deleteSong = function(song) {
     if (song === undefined || song === null || song.className !== 'Song') {
       return
@@ -44,6 +54,14 @@
 
     delete activeSongs[song.id]
 
+    // Clear the recorder audios
+    song.tracks.forEach(function (track) {
+        if (track.audio !== undefined) {
+            track.audio.recorder.cleanup()
+        }
+    })
+
+    // Free the song reference
     for (var member in song) delete song[member]
     song = null
 
