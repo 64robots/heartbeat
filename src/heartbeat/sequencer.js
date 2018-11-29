@@ -34,16 +34,16 @@
     return activeSongs
   }
 
-  function removeProperties(obj) {
-    var i
-    for (i in obj) {
-      if (obj.hasOwnProperty(i)) {
-        //console.log(i);
-        obj[i] = null
-      }
-    }
-  }
-
+  /**
+   * When the song is deleted some actions are
+   * performed. The song is stopped, it is disconnected
+   * from the main node, all the tracks are clean from
+   * the recorder and the song object is dereference
+   * in order to free memory
+   *
+   * @param song
+   * @returns {null}
+   */
   sequencer.deleteSong = function(song) {
     if (song === undefined || song === null || song.className !== 'Song') {
       return
