@@ -34,72 +34,19 @@
     return activeSongs
   }
 
-  function removeProperties(obj) {
-    var i
-    for (i in obj) {
-      if (obj.hasOwnProperty(i)) {
-        //console.log(i);
-        obj[i] = null
-      }
-    }
-  }
-
   sequencer.deleteSong = function(song) {
     if (song === undefined || song === null || song.className !== 'Song') {
       return
     }
 
-    // clean up
     song.stop()
     song.disconnect(masterGainNode)
-    //parseTimeEvents();
 
-    // remove reference
     delete activeSongs[song.id]
 
-    var i, track, j, part, k, note, event
-
-    //console.log(allEvents.length, song.events.length, metronome.events.length);
-    ///*
-    for (i = song.eventsMidiAudioMetronome.length - 1; i >= 0; i--) {
-      event = song.eventsMidiAudioMetronome[i]
-      removeProperties(event)
-    }
-
-    for (i = song.timeEvents.length - 1; i >= 0; i--) {
-      event = song.timeEvents[i]
-      //removeProperties(event);
-    }
-    //*/
-
-    for (i = song.numTracks - 1; i >= 0; i--) {
-      track = song.tracks[i]
-
-      if (track.audio !== undefined) {
-        track.audio.recorder.cleanup()
-      }
-
-      for (j = track.numParts - 1; j >= 0; j--) {
-        part = track.parts[j]
-
-        for (k = part.numNotes - 1; k >= 0; k--) {
-          note = part.notes[k]
-          removeProperties(note)
-        }
-
-        // for(k = part.numEvents - 1; k >= 0; k--){
-        //     event = part.events[k];
-        //     removeProperties(event);
-        // }
-
-        removeProperties(part)
-        part = null
-      }
-      removeProperties(track)
-      track = null
-    }
-    removeProperties(song)
+    for (var member in song) delete song[member]
     song = null
+
     return null
   }
 
