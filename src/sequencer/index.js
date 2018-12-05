@@ -1,4 +1,23 @@
 import { getOs, getBrowser, getContext, isLegacy } from '../utils'
+import {
+  removeMidiFile,
+  removeInstrument,
+  removeSamplePack,
+  removeAssetPack,
+  startTaskQueue,
+  addTask,
+  addCallbackAfterTask,
+  getInstrument,
+  getMidiFile,
+  getSamplePack,
+  getSample,
+  getAssetPack,
+  getSamplePacks,
+  getAssetPacks,
+  getSamples,
+  getInstruments,
+  getMidiFiles
+} from './asset_manager'
 
 const context = getContext()
 const compressor = context.createDynamicsCompressor()
@@ -43,7 +62,7 @@ const protectedScope = {
   }
 }
 
-export default {
+const sequencer = {
   name: 'qambi',
   protectedScope,
   ui: {},
@@ -92,6 +111,9 @@ export default {
       id: 'assetpacks'
     }
   },
+
+  activesongs: {},
+
   getAudioContext: function() {
     return context
   },
@@ -162,8 +184,44 @@ export default {
     src.start(0)
     src.stop(0.001)
     webaudioUnlocked = true
-  }
+  },
+
+  updateInstruments: function() {
+    for (let i in this.activeSongs) {
+      if (activeSongs.hasOwnProperty(i)) {
+        const song = activeSongs[i]
+        const tracks = song.tracks
+        for (let j = tracks.length - 1; j >= 0; j--) {
+          const track = tracks[j]
+          track.instrument.reset()
+        }
+      }
+    }
+  },
+
+  // asset_manager
+  removeMidiFile,
+  removeInstrument,
+  removeSamplePack,
+  removeAssetPack,
+  startTaskQueue,
+  addTask,
+  addCallbackAfterTask,
+  getInstrument,
+  getMidiFile,
+  getSamplePack,
+  getSample,
+  getAssetPack,
+  getSamplePacks,
+  getAssetPacks,
+  getSamples,
+  getInstruments,
+  getMidiFiles
 }
+
+sequencer.removeAssetPack({})
+
+export default sequencer
 
 // debug levels ?
 // Object.defineProperty(sequencer, 'ERROR', { value: 1 })

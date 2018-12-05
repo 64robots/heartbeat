@@ -3,10 +3,8 @@ import { getOs, getBrowser, getContext, initPolyfills } from './utils'
 let sequencer
 
 if (!getContext()) {
-  const browser = getBrowser()
-
   sequencer = {
-    browser,
+    browser: getBrowser(),
     os: getOs(),
     ready(cb) {
       cb()
