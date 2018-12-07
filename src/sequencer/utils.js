@@ -272,7 +272,6 @@ export function storeItem(item, path, root) {
   for (i = 0; i < numFolders; i++) {
     folder = folders[i]
     pathString += '/' + folder
-    //console.log(folder);
     if (currentFolder[folder] === undefined) {
       currentFolder[folder] = {
         path: pathString,
@@ -344,11 +343,61 @@ export function ajax(config) {
   }
 
   promise = new Promise(executor)
-  //console.log(promise);
-
   if (config.onSuccess !== undefined) {
     promise.then(config.onSuccess, config.onError)
   } else {
     return promise
   }
+}
+
+export function base64EncArr(aBytes) {
+  var nMod3 = 2,
+    sB64Enc = ''
+
+  for (var nLen = aBytes.length, nUint24 = 0, nIdx = 0; nIdx < nLen; nIdx++) {
+    nMod3 = nIdx % 3
+    if (nIdx > 0 && ((nIdx * 4) / 3) % 76 === 0) {
+      sB64Enc += '\r\n'
+    }
+    nUint24 |= aBytes[nIdx] << ((16 >>> nMod3) & 24)
+    if (nMod3 === 2 || aBytes.length - nIdx === 1) {
+      sB64Enc += String.fromCharCode(
+        uint6ToB64((nUint24 >>> 18) & 63),
+        uint6ToB64((nUint24 >>> 12) & 63),
+        uint6ToB64((nUint24 >>> 6) & 63),
+        uint6ToB64(nUint24 & 63)
+      )
+      nUint24 = 0
+    }
+  }
+
+  return (
+    sB64Enc.substr(0, sB64Enc.length - 2 + nMod3) +
+    (nMod3 === 2 ? '' : nMod3 === 1 ? '=' : '==')
+  )
+}
+
+function uint6ToB64(nUint6) {
+  return nUint6 < 26
+    ? nUint6 + 65
+    : nUint6 < 52
+    ? nUint6 + 71
+    : nUint6 < 62
+    ? nUint6 - 4
+    : nUint6 === 62
+    ? 43
+    : nUint6 === 63
+    ? 47
+    : 65
+}
+
+export function encode64(buffer) {
+  var binary = '',
+    bytes = new Uint8Array(buffer),
+    len = bytes.byteLength
+
+  for (var i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return window.btoa(binary)
 }

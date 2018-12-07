@@ -19,6 +19,7 @@ import {
   getMidiFiles
 } from './asset_manager'
 import { addAssetPack } from './assetpack'
+import { encodeAudio } from './audio_encoder'
 
 const context = getContext()
 const compressor = context.createDynamicsCompressor()
@@ -220,7 +221,10 @@ const sequencer = {
   getMidiFiles,
 
   // assetpack
-  addAssetPack
+  addAssetPack,
+
+  // audio_encoder
+  encodeAudio
 }
 
 export default sequencer
