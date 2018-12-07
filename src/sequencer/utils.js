@@ -257,3 +257,98 @@ function loop3(folder, items, search_subfolders, indent) {
     }
   }
 }
+
+export function storeItem(item, path, root) {
+  var folder,
+    folders,
+    numFolders,
+    currentFolder,
+    i,
+    pathString = ''
+  folders = pathToArray(path)
+  numFolders = folders.length
+  currentFolder = root
+
+  for (i = 0; i < numFolders; i++) {
+    folder = folders[i]
+    pathString += '/' + folder
+    //console.log(folder);
+    if (currentFolder[folder] === undefined) {
+      currentFolder[folder] = {
+        path: pathString,
+        className: 'Folder'
+      }
+    }
+    if (i === numFolders - 1) {
+      currentFolder[folder] = item
+      break
+    }
+    currentFolder = currentFolder[folder]
+  }
+}
+
+export function ajax(config) {
+  var request = new XMLHttpRequest(),
+    method = config.method === undefined ? 'GET' : config.method,
+    fileSize,
+    promise
+
+  function executor(resolve, reject) {
+    reject = reject || function() {}
+    resolve = resolve || function() {}
+
+    request.onload = function() {
+      if (request.status !== 200) {
+        reject(request.status)
+        return
+      }
+
+      if (config.responseType === 'json') {
+        fileSize = request.response.length
+        resolve(JSON.parse(request.response), fileSize)
+      } else {
+        resolve(request.response)
+      }
+    }
+
+    request.onerror = function(e) {
+      config.onError(e)
+    }
+
+    request.open(method, config.url, true)
+
+    if (config.overrideMimeType) {
+      request.overrideMimeType(config.overrideMimeType)
+    }
+
+    if (config.responseType) {
+      if (config.responseType === 'json') {
+        request.responseType = 'text'
+      } else {
+        request.responseType = config.responseType
+      }
+    }
+
+    if (method === 'POST') {
+      request.setRequestHeader(
+        'Content-type',
+        'application/x-www-form-urlencoded'
+      )
+    }
+
+    if (config.data) {
+      request.send(config.data)
+    } else {
+      request.send()
+    }
+  }
+
+  promise = new Promise(executor)
+  //console.log(promise);
+
+  if (config.onSuccess !== undefined) {
+    promise.then(config.onSuccess, config.onError)
+  } else {
+    return promise
+  }
+}

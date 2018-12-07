@@ -18,6 +18,7 @@ import {
   getInstruments,
   getMidiFiles
 } from './asset_manager'
+import { addAssetPack } from './assetpack'
 
 const context = getContext()
 const compressor = context.createDynamicsCompressor()
@@ -216,10 +217,11 @@ const sequencer = {
   getAssetPacks,
   getSamples,
   getInstruments,
-  getMidiFiles
-}
+  getMidiFiles,
 
-sequencer.removeAssetPack({})
+  // assetpack
+  addAssetPack
+}
 
 export default sequencer
 
